@@ -1,0 +1,17 @@
+.map-draw-toolbar {
+  background-color: rgb(7, 70, 243);  
+  width: 20px;
+  height: 500px;
+  position: absolute;
+  top: 5rem;
+  left: 1rem;
+  border-radius: 10px;
+  padding: 0.5rem;
+  overflow: auto;
+  z-index: 1000;
+  display: flex;
+}
+
+.rectangle {
+  z-index: 1000;
+}
