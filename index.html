@@ -150,10 +150,10 @@
                     translateFeature: true,
                     scale: true,
                     rotate: true,
-                    keepAspectRatio: false,
+                    keepAspectRatio: ol.events.condition.always,
                     translate: true,
                     keepRectangle: true,
-                    stretch: true,
+                    stretch: false,
                     pointRadius: function (f) {
                         var radius = f.get('radius') || 10;
                         return [radius, radius];
