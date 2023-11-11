@@ -39,8 +39,8 @@
             <select id="select" value={selectedOption} onchange='handleSelectChange(this)'>
                 <option value="TRAlign">Top->Right align</option>
                 <option value="TLAlign">Top->Left align</option>
-                <option value="BLAlign">Bottom->Left align</option>
-                <option selected value="BRAlign">Bottom->Right align</option>
+                <option selected value="BLAlign">Bottom->Left align</option>
+                <option value="BRAlign">Bottom->Right align</option>
 
             </select>
         </div>
@@ -59,7 +59,8 @@
         var startangle = 0;
         var startRadius = 10;
         var d = [0, 0];
-        var option = 'BRAlign';
+        var option = 'BLAlign';
+        const gridSource = new ol.source.Vector();
 
         const map = new ol.Map({
             target: 'map',
@@ -195,7 +196,7 @@
         function getFeaturefromGeoJSON(map_grid_geo_json) {
             var format = new ol.format.GeoJSON();
             var feature = format.readFeature(map_grid_geo_json, {
-                dataProjection: 'EPSG:4326',
+                dataProjection: 'EPSG:3857',
                 featureProjection: 'EPSG:3857',
             });
             const rectangleCoordinates = feature.getGeometry().getCoordinates()[0];
@@ -224,14 +225,16 @@
             return newfeature;
         }
 
-        
+
 
         function handleButtonValidtest() {
             // if (interaction) {
             //     map.removeInteraction(interaction);
             //     interaction = (null);
             // }
-            var map_grid_geo_json = '{"type":"Feature","geometry":{"type":"Polygon","coordinates":[[[6.525147155,46.52609521599999],[6.524717199,46.52589173700002],[6.525159396,46.525446587000005],[6.525589356000001,46.525650067000015],[6.525147155,46.52609521599999]]]},"properties":null}';
+            //var map_grid_geo_json = '{"type":"Feature","geometry":{"type":"Polygon","coordinates":[[[6.525147155,46.52609521599999],[6.524717199,46.52589173700002],[6.525159396,46.525446587000005],[6.525589356000001,46.525650067000015],[6.525147155,46.52609521599999]]]},"properties":null}';
+
+            var map_grid_geo_json = '{"type":"Feature","geometry":{"type":"Polygon","coordinates":[[ [726302.0708929402, 5865129.018235411], [726384.8445342669, 5865094.198327251], [726398.894672647, 5865207.5157476645], [726306.3470220123, 5865208.126623247], [726302.0708929402, 5865129.018235411] ]]},"properties":null}';
 
             drawFeature = getFeaturefromGeoJSON(map_grid_geo_json);
 
@@ -264,7 +267,7 @@
                     })
                 });
 
-                const gridSource = new ol.source.Vector();
+
                 const gridLayer = new ol.layer.Vector({
                     source: gridSource,
                     style: function (feature) {
@@ -317,22 +320,9 @@
                 const numCols = (rectWidth / value);
                 const numRows = (rectHeight / value);
 
-                const point1 = new ol.geom.Point([extent[0], extent[1]]);
+                getNewRectangleFromPolygon(drawFeature.getGeometry().getCoordinates()[0], gridSource);
 
-
-                const pointFeature1 = new ol.Feature({
-                    geometry: point1,
-                });
-
-                gridSource.addFeature(pointFeature1);
-
-                const point2 = new ol.geom.Point([extent[2], extent[3]]);
-
-                const pointFeature2 = new ol.Feature({
-                    geometry: point2,
-                });
-
-                gridSource.addFeature(pointFeature2);
+                // gridSource.addFeature(pointFeature2);
                 /*
                     (minX, maxY) ----------- > (maxX, maxY)
                          |                          |
@@ -343,52 +333,31 @@
                 */
 
 
-                gridSource.addFeature(new ol.Feature({
-                    geometry: new ol.geom.LineString([
-                        [minX, minY],
-                        [maxX, minY],
-                    ]),
-                }));
-                gridSource.addFeature(new ol.Feature({
-                    geometry: new ol.geom.LineString([
-                        [minX, minY],
-                        [minX, maxY],
-                    ]),
-                }));
-                gridSource.addFeature(new ol.Feature({
-                    geometry: new ol.geom.LineString([
-                        [maxX, maxY],
-                        [minX, maxY],
-                    ]),
-                }));
-                gridSource.addFeature(new ol.Feature({
-                    geometry: new ol.geom.LineString([
-                        [maxX, minY],
-                        [maxX, maxY],
-                    ]),
-                }));
+                // gridSource.addFeature(new ol.Feature({
+                //     geometry: new ol.geom.LineString([
+                //         [minX, minY],
+                //         [maxX, minY],
+                //     ]),
+                // }));
+                // gridSource.addFeature(new ol.Feature({
+                //     geometry: new ol.geom.LineString([
+                //         [minX, minY],
+                //         [minX, maxY],
+                //     ]),
+                // }));
+                // gridSource.addFeature(new ol.Feature({
+                //     geometry: new ol.geom.LineString([
+                //         [maxX, maxY],
+                //         [minX, maxY],
+                //     ]),
+                // }));
+                // gridSource.addFeature(new ol.Feature({
+                //     geometry: new ol.geom.LineString([
+                //         [maxX, minY],
+                //         [maxX, maxY],
+                //     ]),
+                // }));
 
-                var polygonGeom = drawFeature.getGeometry();
-                console.log(polygonGeom)
-                var lineStringFeature = new ol.Feature({
-                    geometry: new ol.geom.LineString([
-                        [minX + rectWidth / 2 + cellSize, minY],
-                        [minX + rectWidth / 2 + cellSize, maxY],
-                    ]),
-                });
-
-                // gridSource.addFeature(lineStringFeature);
-
-                var lineStringGeom = lineStringFeature.getGeometry();
-
-
-                var poly1 = turf.polygon(drawFeature.getGeometry().getCoordinates());
-
-                var line1 = turf.lineString(lineStringFeature.getGeometry().getCoordinates());
-
-                // Reproject the features to EPSG:4326 for Turf.js calculations
-                const polygon4326 = turf.toWgs84(poly1);
-                const linestring4326 = turf.toWgs84(line1);
 
                 // for columns
                 for (let i = 1; i <= parseInt(numCols); i++) {
@@ -402,31 +371,29 @@
                         geometry: line,
                     });
 
-                    gridSource.addFeature(lineFeature);
-
                     const poly1 = turf.polygon(drawFeature.getGeometry().getCoordinates());
-
                     const line1 = turf.lineString(lineFeature.getGeometry().getCoordinates());
-
-                    // Reproject the features to EPSG:4326 for Turf.js calculations
-                    const polygon4326 = turf.toWgs84(poly1);
-                    const linestring4326 = turf.toWgs84(line1);
-                    console.log(linestring4326);
-
                     const intersection1 = turf.lineIntersect(poly1, line1);
-                    console.log("intersection1", intersection1)
-
+                    let points = [];
                     if (intersection1) {
-                        // There is an intersection, and intersection.geometry contains the intersection point(s).
-                        // console.log("Intersection point:", intersection1.geometry.coordinates);
-                        turf.featureEach(intersection1, function (currentFeature, featureIndex) {
 
-
-                            gridSource.addFeature(getProjFeatureFromPoint(
-                                turf.getCoords(currentFeature))
-                            );
-                            // console.log(currentFeature.getGeometry().getCoordinates())
+                        turf.coordEach(intersection1, function (currentCoord, coordIndex, featureIndex, multiFeatureIndex, geometryIndex) {
+                            points.push(currentCoord);
+                            // console.log('current', currentCoord);
                         });
+
+                        const line = new ol.geom.LineString([
+                            points[0],
+                            points[1],
+                        ]);
+
+                        const lineFeature1 = new ol.Feature({
+                            geometry: line,
+                        });
+
+                        // gridSource.addFeature(lineFeature1);
+
+                        console.log("points", points);
 
 
                     } else {
@@ -435,29 +402,437 @@
                 }
 
                 // for rows
-                // for (let j = 1; j <= parseInt(numRows); j++) {
-                //     const line = new ol.geom.LineString([
-                //             [minX , minY+ cellSize* j],
-                //             [maxX , minY+ cellSize* j],
-                //         ]);
 
-                //         const lineFeature = new ol.Feature({
-                //             geometry: line,
-                //         });
-                //         // gridSource.addFeature(lineFeature);
-                //         // var line1 = turf.lineString(lineFeature.getGeometry().getCoordinates());
+                for (let j = 1; j <= parseInt(numRows); j++) {
+                    const line = new ol.geom.LineString([
+                        [minX, minY + cellSize * j],
+                        [maxX, minY + cellSize * j],
+                    ]);
 
-                //         // var intersection = turf.intersect(poly1, line1);
+                    const lineFeature = new ol.Feature({
+                        geometry: line,
+                    });
 
-                //         // if (intersection) {
-                //         // // There is an intersection, and intersection.geometry contains the intersection point(s).
-                //         // console.log("Intersection point:", intersection.geometry.coordinates);
-                //         // } else {
-                //         // console.log("No intersection found.");
-                //         // }
-                // }
+                    const poly1 = turf.polygon(drawFeature.getGeometry().getCoordinates());
+                    const line1 = turf.lineString(lineFeature.getGeometry().getCoordinates());
+                    const intersection1 = turf.lineIntersect(poly1, line1);
+                    let points = [];
+                    if (intersection1) {
+
+                        turf.coordEach(intersection1, function (currentCoord, coordIndex, featureIndex, multiFeatureIndex, geometryIndex) {
+                            points.push(currentCoord);
+                            // console.log('current', currentCoord);
+                        });
+
+                        const line = new ol.geom.LineString([
+                            points[0],
+                            points[1],
+                        ]);
+
+                        const lineFeature1 = new ol.Feature({
+                            geometry: line,
+                        });
+
+                        // gridSource.addFeature(lineFeature1);
+
+                        console.log("points", points);
+
+                    } else {
+                        console.log("No intersection found.");
+                    }
+                }
+
+                map.on('click', function (event) {
+                    const clickedCoordinates = event.coordinate;
+                    console.log(clickedCoordinates);
+                    if (!drawFeature) return;
+                });
             }
         };
+
+        function getNewRectangleFromPolygon(coordinates, source) {
+
+            var pointIndex = getLongerPointIndex(coordinates);
+
+            const newlineString = new ol.geom.LineString(
+                [coordinates[0], coordinates[1]]
+            );
+
+            const pointCoord = coordinates[2];
+            var pointArray = [];
+
+            var newPoint = getPointFromPerpendicularLine(coordinates[0], coordinates[pointIndex], coordinates[2]);
+            pointArray.push(newPoint);
+            newPoint = getPointFromPerpendicularLine(coordinates[0], coordinates[pointIndex], coordinates[3]);
+            pointArray.push(newPoint);
+
+            pointArray.push(coordinates[0]);
+            pointArray.push(coordinates[pointIndex]);
+
+
+            var startPointIndex = 0;
+            var endPointIndex = 1;
+            var maxLength = 0;
+
+            for (var i = 0; i < pointArray.length - 1; i++) {
+                var start = pointArray[i];
+                for (var j = i + 1; j < pointArray.length; j++) {
+                    var end = pointArray[j];
+                    var length = getLength(start, end);
+
+                    if (length > maxLength) {
+                        maxLength = length;
+                        startPointIndex = i;
+                        endPointIndex = j;
+                    }
+                }
+            }
+
+            var pointToLineDistance1 = getPointToLineDistance(pointArray[startPointIndex], pointArray[endPointIndex], coordinates[2]);
+            var pointToLineDistance2 = getPointToLineDistance(pointArray[startPointIndex], pointArray[endPointIndex], coordinates[3]);
+            var tempPoint = [0, 0];
+            if (pointToLineDistance1 >= pointToLineDistance2) {
+                tempPoint = coordinates[2];
+            } else {
+                tempPoint = coordinates[3];
+            }
+
+            var points = getAnotherPoints(pointArray[startPointIndex], pointArray[endPointIndex], tempPoint);
+            var newFeature = new ol.Feature({
+                geometry: new ol.geom.Polygon(
+                    [[pointArray[startPointIndex], pointArray[endPointIndex], points[0], points[1], pointArray[startPointIndex]]]
+                ),
+            });
+
+            source.addFeature(newFeature);
+            var newPolygon = getNewPolygon([pointArray[startPointIndex], pointArray[endPointIndex], points[0], points[1], pointArray[startPointIndex]], source);
+            newFeature = new ol.Feature({
+                geometry: new ol.geom.Polygon(
+                    [newPolygon]
+                ),
+            });
+            source.addFeature(newFeature);
+
+            
+
+            const rectangleCoordinates = newFeature.getGeometry().getCoordinates()[0];
+            const rectwidth = Math.abs(rectangleCoordinates[1][0] - rectangleCoordinates[0][0]);
+            const rectheight = Math.abs(rectangleCoordinates[3][1] - rectangleCoordinates[0][1]);
+
+            const cellWidth1 = value
+            const cellHeight1 = value
+
+            const numCols1 = (rectwidth / value);
+            const numRows1 = (rectheight / value);
+            const cellHeight_temp = (rectangleCoordinates[3][0] - rectangleCoordinates[0][0]) / numRows1;
+
+            const Ax = rectangleCoordinates[0][0] - rectangleCoordinates[1][0];
+            const Ay = rectangleCoordinates[0][1] - rectangleCoordinates[1][1];
+            const Bx = rectangleCoordinates[0][0] - rectangleCoordinates[3][0];
+            const By = rectangleCoordinates[0][1] - rectangleCoordinates[3][1];
+
+            const ta = value *1.0 / (Math.sqrt(Ax * Ax + Ay * Ay));
+            const tb = value* 1.0 / (Math.sqrt(Bx * Bx + By * By));
+
+
+            // for (let i = 1; i <= parseInt(numCols1); i++) {
+            //     const line = new ol.geom.LineString([
+            //             [rectangleCoordinates[0][0] - tb * Bx*i, rectangleCoordinates[0][1] - tb * By*i],
+            //             [rectangleCoordinates[1][0] - tb * Bx*i, rectangleCoordinates[1][1] - tb * By*i],
+            //             // Add as many points as necessary
+            //         ]);
+
+            //         const lineFeature = new ol.Feature({
+            //             geometry: line,
+            //         });
+            //         source.addFeature(lineFeature);
+            // }
+            // return;
+            for (let i = 1; i <= parseInt(numCols1); i++) {
+                if (option === 'BLAlign') {
+                    // const line = new ol.geom.LineString([
+                    //     [rectangleCoordinates[0][0] + cellWidth1 * i, rectangleCoordinates[0][1] - cellHeight_temp * i],
+                    //     [rectangleCoordinates[3][0] + cellWidth1 * i, rectangleCoordinates[3][1] - cellHeight_temp * i],
+                    //     // Add as many points as necessary
+                    // ]);
+
+                    // const lineFeature = new ol.Feature({
+                    //     geometry: line,
+                    // });
+                    const line = new ol.geom.LineString([
+                        [rectangleCoordinates[0][0] - ta * Ax*i, rectangleCoordinates[0][1] - ta * Ay*i],
+                        [rectangleCoordinates[3][0] - ta * Ax*i, rectangleCoordinates[3][1] - ta * Ay*i],
+                        // Add as many points as necessary
+                    ]);
+
+                    const lineFeature = new ol.Feature({
+                        geometry: line,
+                    });
+                    // gridSource.addFeature(lineFeature);
+
+                    const poly1 = turf.polygon(drawFeature.getGeometry().getCoordinates());
+                    const line1 = turf.lineString(lineFeature.getGeometry().getCoordinates());
+                    const intersection1 = turf.lineIntersect(poly1, line1);
+
+                    let pointsTurf = [];
+                    if (intersection1) {
+
+                        turf.coordEach(intersection1, function (currentCoord, coordIndex, featureIndex, multiFeatureIndex, geometryIndex) {
+                            pointsTurf.push(currentCoord);
+                            // console.log('current', currentCoord);
+                        });
+                        if (pointsTurf.length < 2 ) continue;
+
+                        console.log("pointsTurf", pointsTurf)
+                    //     source.addFeature(new ol.Feature({
+                    //     geometry: new ol.geom.Point(pointsTurf[0]),
+                    // }));
+
+                        const line = new ol.geom.LineString([
+                            pointsTurf[0],
+                            pointsTurf[1],
+                        ]);
+
+                        const lineFeature1 = new ol.Feature({
+                            geometry: line,
+                        });
+
+                        source.addFeature(lineFeature1);
+
+                        console.log("points", pointsTurf);
+                        console.log("______________________________");
+                    } else {
+                        console.log("No intersection found.");
+                    }
+                }
+                else if (option === 'BRAlign') {
+                    const line = new ol.geom.LineString([
+                        [rectangleCoordinates[1][0] - cellWidth1 * i, rectangleCoordinates[1][1] + cellHeight_temp * i],
+                        [rectangleCoordinates[2][0] - cellWidth1 * i, rectangleCoordinates[2][1] + cellHeight_temp * i],
+                        // Add as many points as necessary
+                    ]);
+                    const lineFeature = new ol.Feature({
+                        geometry: line,
+                    });
+                    gridSource.addFeature(lineFeature);
+                }
+                else if (option === 'TLAlign') {
+                    const line = new ol.geom.LineString([
+                        [rectangleCoordinates[0][0] + cellWidth1 * i, rectangleCoordinates[0][1] - cellHeight_temp * i],
+                        [rectangleCoordinates[3][0] + cellWidth1 * i, rectangleCoordinates[3][1] - cellHeight_temp * i],
+                        // Add as many points as necessary
+                    ]);
+
+                    const lineFeature = new ol.Feature({
+                        geometry: line,
+                    });
+                    gridSource.addFeature(lineFeature);
+                } else if (option === 'TRAlign') {
+                    const line = new ol.geom.LineString([
+                        [rectangleCoordinates[1][0] - cellWidth1 * i, rectangleCoordinates[1][1] + cellHeight_temp * i],
+                        [rectangleCoordinates[2][0] - cellWidth1 * i, rectangleCoordinates[2][1] + cellHeight_temp * i],
+                        // Add as many points as necessary
+                    ]);
+                    const lineFeature = new ol.Feature({
+                        geometry: line,
+                    });
+                    gridSource.addFeature(lineFeature);
+                }
+            }
+
+            const cellWidth_temp = (rectangleCoordinates[1][1] - rectangleCoordinates[0][1]) / numCols1;
+            for (let j = 1; j <= parseInt(numRows1); j++) {
+
+                if (option === 'BLAlign' || option === 'BRAlign') {
+
+                    const line = new ol.geom.LineString([
+                        [rectangleCoordinates[0][0] - tb * Bx*j, rectangleCoordinates[0][1] - tb * By*j],
+                        [rectangleCoordinates[1][0] - tb * Bx*j, rectangleCoordinates[1][1] - tb * By*j],
+                        // Add as many points as necessary
+                    ]);
+
+                    const lineFeature = new ol.Feature({
+                        geometry: line,
+                    });
+                    // gridSource.addFeature(lineFeature);
+                    const poly1 = turf.polygon(drawFeature.getGeometry().getCoordinates());
+                    const line1 = turf.lineString(lineFeature.getGeometry().getCoordinates());
+                    const intersection1 = turf.lineIntersect(poly1, line1);
+                    console.log(intersection1)
+                    let pointsTurf = [];
+                    if (intersection1) {
+
+                        turf.coordEach(intersection1, function (currentCoord, coordIndex, featureIndex, multiFeatureIndex, geometryIndex) {
+                            pointsTurf.push(currentCoord);
+                            // console.log('current', currentCoord);
+                        });
+                        if (pointsTurf.length < 2 ) continue;
+
+                        console.log("pointsTurf", pointsTurf)
+
+                        const line = new ol.geom.LineString([
+                            pointsTurf[0],
+                            pointsTurf[1],
+                        ]);
+
+                        const lineFeature1 = new ol.Feature({
+                            geometry: line,
+                        });
+
+                        source.addFeature(lineFeature1);
+
+                        console.log("points", pointsTurf);
+                        console.log("______________________________");
+                    } else {
+                        console.log("No intersection found.");
+                    }
+                }
+                else if (option === 'TLAlign' || option === 'TRAlign') {
+
+                    const line = new ol.geom.LineString([
+                        [rectangleCoordinates[3][0] + cellWidth_temp * j, rectangleCoordinates[3][1] - cellHeight1 * j],
+                        [rectangleCoordinates[2][0] + cellWidth_temp * j, rectangleCoordinates[2][1] - cellHeight1 * j],
+                        // Add as many points as necessary
+                    ]);
+
+                    const lineFeature = new ol.Feature({
+                        geometry: line,
+                    });
+
+                    gridSource.addFeature(lineFeature);
+                }
+            }
+
+
+        }
+
+        function getNewPolygon(pointArray, source) {
+
+            var newFeature = new ol.Feature({
+                geometry: new ol.geom.Polygon(
+                    [[pointArray[0], pointArray[1], pointArray[2], pointArray[3], pointArray[0]]]
+                ),
+            });
+
+            source.addFeature(newFeature);
+
+            const Ax = pointArray[0][0] - pointArray[1][0];
+            const Ay = pointArray[0][1] - pointArray[1][1];
+            const Bx = pointArray[0][0] - pointArray[3][0];
+            const By = pointArray[0][1] - pointArray[3][1];
+
+            const ta = value *1.0 / (Math.sqrt(Ax * Ax + Ay * Ay));
+            const tb = value* 1.0 / (Math.sqrt(Bx * Bx + By * By));
+
+
+
+            const newPoint1 = getNewPoint([Ax, Ay], [Bx, By], ta, tb, pointArray[0]);
+            const newPoint2 = getNewPoint([-Ax, -Ay], [Bx, By], ta, tb, pointArray[1]);
+            const newPoint3 = getNewPoint([-Ax, -Ay], [-Bx, -By], ta, tb, pointArray[2]);
+            const newPoint4 = getNewPoint([Ax, Ay], [-Bx, -By], ta, tb, pointArray[3]);
+
+            newFeature = new ol.Feature({
+                geometry: new ol.geom.Point(
+                    newPoint1
+                ),
+            });
+            source.addFeature(newFeature);
+
+            newFeature = new ol.Feature({
+                geometry: new ol.geom.Point(
+                    newPoint2
+                ),
+            });
+            source.addFeature(newFeature);
+            newFeature = new ol.Feature({
+                geometry: new ol.geom.Point(
+                    newPoint3
+                ),
+            });
+            source.addFeature(newFeature);
+            newFeature = new ol.Feature({
+                geometry: new ol.geom.Point(
+                    newPoint4
+                ),
+            });
+            source.addFeature(newFeature);
+            return [newPoint1, newPoint2, newPoint3, newPoint4, newPoint1];
+        }
+
+        function getNewPoint(VectorA, VectorB, ta, tb, pt) {
+            const newX1 = ta * VectorA[0] + pt[0];
+            const newY1 = ta * VectorA[1] + pt[1];
+            const newX2 = tb * VectorB[0] + pt[0];
+            const newY2 = tb * VectorB[1] + pt[1];
+            const X = newX1 + newX2 - pt[0];
+            const Y = newY1 + newY2 - pt[1];
+            return [X, Y];
+        }
+
+        function getPointToLineDistance(pt1, pt2, pt0) {
+
+            var a = 1;
+            if ((pt1[0] - pt2[0]) == 0) a = 1;
+            else a = (pt1[1] - pt2[1]) / (pt1[0] - pt2[0]);
+
+            var b = 0;
+            b = pt1[1] - a * pt1[0];
+
+            var distance = Math.abs(a * pt0[0] - pt0[1] + b) / Math.sqrt(a * a + 1);
+            return distance;
+        }
+
+        function getAnotherPoints(pt1, pt2, pt0) {
+
+            var a = 1;
+            if ((pt1[0] - pt2[0]) == 0) a = 1;
+            else a = (pt1[1] - pt2[1]) / (pt1[0] - pt2[0]);
+
+            var b = 0;
+
+            b = pt1[1] - a * pt1[0];
+            var b1 = pt0[1] - a * pt0[0];
+
+            var b2 = pt1[1] + pt1[0] / a;
+
+            var x = (b2 - b1) / (a + 1 / a);
+            var y = - x / a + b2;
+            var b3 = pt2[1] + pt2[0] / a;
+            var x1 = (b3 - b1) / (a + 1 / a);
+            var y1 = - x1 / a + b3;
+            return [[x1, y1], [x, y]];
+        }
+
+        function getPointFromPerpendicularLine(pt1, pt2, pt0) {
+            console.log(pt1, pt2, pt0);
+            var a = 1;
+            if ((pt1[0] - pt2[0]) == 0) a = 1;
+            else a = (pt1[1] - pt2[1]) / (pt1[0] - pt2[0]);
+
+            var b = 0;
+            b = pt1[1] - a * pt1[0];
+            console.log(a, b)
+            var b1 = pt0[1] + pt0[0] / a;
+            console.log(a, b1)
+            var x = (b1 - b) / (a + 1 / a);
+            var y = - x / a + b1;
+            return [x, y];
+        }
+
+        function getLongerPointIndex(coordinates) {
+            if (option == 'BLAlign') {
+                const length1 = getLength(coordinates[0], coordinates[1]);
+                const length2 = getLength(coordinates[0], coordinates[3]);
+                if (length1 >= length2) return 1;
+                else 3;
+            }
+
+
+        }
+
+        function getLength(point1, point2) {
+            return Math.sqrt((point2[0] - point1[0]) * (point2[0] - point1[0]) + (point2[1] - point1[1]) * (point2[1] - point1[1]));
+        }
 
 
         function handleButtonValid() {
