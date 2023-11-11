@@ -567,6 +567,7 @@
 
         function getCoordsByLongerLine(coordinates) {
             var pointArray = [];
+            map_grid_anchor = 'down_left';
             if (map_grid_anchor == 'down_left') {
                 pointArray.push(coordinates[0]);
                 var length1 = getLength(coordinates[0], coordinates[1]);
@@ -598,6 +599,7 @@
                 var length1 = getLength(coordinates[3], coordinates[0]);
                 var length2 = getLength(coordinates[3], coordinates[2]);
                 if (length1 >= length2) {
+                    console.log("o")
                     pointArray.push(coordinates[0]);
                     pointArray.push(coordinates[1]);
                     pointArray.push(coordinates[2]);
@@ -631,10 +633,10 @@
             var alignCoords = getCoordsByLongerLine(coordinates);
             console.log("alignCoords", alignCoords);
             var pointArray = [alignCoords[0], alignCoords[1]];
-            var nearestPoint = getClosestPointFromLine(alignCoords[0], alignCoords[1], coordinates[2]);
+            var nearestPoint = getClosestPointFromLine(alignCoords[0], alignCoords[1], alignCoords[2]);
             if (isValidPoint(alignCoords[0], alignCoords[1], nearestPoint))
                 pointArray.push(nearestPoint);
-            nearestPoint = getClosestPointFromLine(alignCoords[0], alignCoords[1], coordinates[3]);
+            nearestPoint = getClosestPointFromLine(alignCoords[0], alignCoords[1], alignCoords[3]);
             if (isValidPoint(alignCoords[0], alignCoords[1], nearestPoint))
                 pointArray.push(nearestPoint);
             var baseLinePointsArray = getBaseLinePointsArray(pointArray);
@@ -642,41 +644,7 @@
             var newCoords = getNewCoords(baseLinePointsArray, alignCoords[2], alignCoords[3]);
             console.log("newCoords", newCoords);
 
-            console.log(baseLinePointsArray);
-
-            var newFeature = new ol.Feature({
-                geometry: new ol.geom.LineString(
-                    [baseLinePointsArray[1],
-                    baseLinePointsArray[2],]
-                ),
-            });
-            newFeature = new ol.Feature({
-                geometry: new ol.geom.Point(
-                    baseLinePointsArray[0]
-                ),
-            });
-            source.addFeature(newFeature);
-
-            newFeature = new ol.Feature({
-                geometry: new ol.geom.Point(
-                    baseLinePointsArray[1]
-                ),
-            });
-            source.addFeature(newFeature);
-
-            newFeature = new ol.Feature({
-                geometry: new ol.geom.Point(
-                    baseLinePointsArray[2]
-                ),
-            });
-            source.addFeature(newFeature);
-
-            newFeature = new ol.Feature({
-                geometry: new ol.geom.Point(
-                    newCoords[3]
-                ),
-            });
-            source.addFeature(newFeature);
+            console.log(baseLinePointsArray);           
 
             // var newPolygon = getNewPolygon([baseLinePointsArray[1], baseLinePointsArray[2], points[0], points[1], pointArray[startPointIndex]], source);
             newFeature = new ol.Feature({
@@ -686,64 +654,14 @@
             });
             source.addFeature(newFeature);
 
-
-            return
-            var pointIndex = getLongerPointIndex(coordinates);
-            const pointCoord = coordinates[2];
-            var pointArray = [];
-            var nearestPoint = getClosestPointFromLine(coordinates[0], coordinates[pointIndex], coordinates[2]);
-
-            pointArray.push(newPoint);
-            newPoint = getClosestPointFromLine(coordinates[0], coordinates[pointIndex], coordinates[3]);
-            pointArray.push(newPoint);
-            pointArray.push(coordinates[0]);
-            pointArray.push(coordinates[pointIndex]);
-
-
-            var startPointIndex = 0;
-            var endPointIndex = 1;
-            var maxLength = 0;
-
-            for (var i = 0; i < pointArray.length - 1; i++) {
-                var start = pointArray[i];
-                for (var j = i + 1; j < pointArray.length; j++) {
-                    var end = pointArray[j];
-                    var length = getLength(start, end);
-
-                    if (length > maxLength) {
-                        maxLength = length;
-                        startPointIndex = i;
-                        endPointIndex = j;
-                    }
-                }
-            }
-
-            var pointToLineDistance1 = getPointToLineDistance(pointArray[startPointIndex], pointArray[endPointIndex], coordinates[2]);
-            var pointToLineDistance2 = getPointToLineDistance(pointArray[startPointIndex], pointArray[endPointIndex], coordinates[3]);
-            var tempPoint = [0, 0];
-            if (pointToLineDistance1 >= pointToLineDistance2) {
-                tempPoint = coordinates[2];
-            } else {
-                tempPoint = coordinates[3];
-            }
-
-            var points = getAnotherPoints(pointArray[startPointIndex], pointArray[endPointIndex], tempPoint);
-            var newFeature = new ol.Feature({
-                geometry: new ol.geom.Polygon(
-                    [[pointArray[startPointIndex], pointArray[endPointIndex], points[0], points[1], pointArray[startPointIndex]]]
-                ),
-            });
-
-            source.addFeature(newFeature);
-            var newPolygon = getNewPolygon([pointArray[startPointIndex], pointArray[endPointIndex], points[0], points[1], pointArray[startPointIndex]], source);
+            var newPolygon = getNewPolygon(newCoords.slice(0,4), source);
             newFeature = new ol.Feature({
                 geometry: new ol.geom.Polygon(
                     [newPolygon]
                 ),
             });
             source.addFeature(newFeature);
-
-
+            
 
             const rectangleCoordinates = newFeature.getGeometry().getCoordinates()[0];
             const rectwidth = Math.abs(rectangleCoordinates[1][0] - rectangleCoordinates[0][0]);
@@ -761,7 +679,7 @@
             const tb = value * 1.0 / (Math.sqrt(Bx * Bx + By * By));
 
             for (let i = 1; i <= parseInt(numCols1); i++) {
-                if (map_grid_anchor === 'BLAlign') {
+                if (map_grid_anchor === 'down_left') {
 
                     const line = new ol.geom.LineString([
                         [rectangleCoordinates[0][0] - ta * Ax * i, rectangleCoordinates[0][1] - ta * Ay * i],
@@ -804,45 +722,12 @@
                     } else {
                         console.log("No intersection found.");
                     }
-                }
-                else if (map_grid_anchor === 'BRAlign') {
-                    const line = new ol.geom.LineString([
-                        [rectangleCoordinates[1][0] - cellWidth1 * i, rectangleCoordinates[1][1] + cellHeight_temp * i],
-                        [rectangleCoordinates[2][0] - cellWidth1 * i, rectangleCoordinates[2][1] + cellHeight_temp * i],
-                        // Add as many points as necessary
-                    ]);
-                    const lineFeature = new ol.Feature({
-                        geometry: line,
-                    });
-                    gridSource.addFeature(lineFeature);
-                }
-                else if (map_grid_anchor === 'TLAlign') {
-                    const line = new ol.geom.LineString([
-                        [rectangleCoordinates[0][0] + cellWidth1 * i, rectangleCoordinates[0][1] - cellHeight_temp * i],
-                        [rectangleCoordinates[3][0] + cellWidth1 * i, rectangleCoordinates[3][1] - cellHeight_temp * i],
-                        // Add as many points as necessary
-                    ]);
-
-                    const lineFeature = new ol.Feature({
-                        geometry: line,
-                    });
-                    gridSource.addFeature(lineFeature);
-                } else if (map_grid_anchor === 'TRAlign') {
-                    const line = new ol.geom.LineString([
-                        [rectangleCoordinates[1][0] - cellWidth1 * i, rectangleCoordinates[1][1] + cellHeight_temp * i],
-                        [rectangleCoordinates[2][0] - cellWidth1 * i, rectangleCoordinates[2][1] + cellHeight_temp * i],
-                        // Add as many points as necessary
-                    ]);
-                    const lineFeature = new ol.Feature({
-                        geometry: line,
-                    });
-                    gridSource.addFeature(lineFeature);
-                }
+                }                
             }
 
             for (let j = 1; j <= parseInt(numRows1); j++) {
 
-                if (map_grid_anchor === 'BLAlign' || map_grid_anchor === 'BRAlign') {
+                if (map_grid_anchor === 'down_left' || map_grid_anchor === 'down_right') {
 
                     const line = new ol.geom.LineString([
                         [rectangleCoordinates[0][0] - tb * Bx * j, rectangleCoordinates[0][1] - tb * By * j],
@@ -879,7 +764,7 @@
                         console.log("No intersection found.");
                     }
                 }
-                else if (map_grid_anchor === 'TLAlign' || map_grid_anchor === 'TRAlign') {
+                else if (map_grid_anchor === 'up_left' || map_grid_anchor === 'up_right') {
 
                     const line = new ol.geom.LineString([
                         [rectangleCoordinates[3][0] + cellWidth_temp * j, rectangleCoordinates[3][1] - cellHeight1 * j],
@@ -1199,31 +1084,56 @@
 
 
         }
+        function reorderArray(arr, index) {
+            if (index < 0 || index >= arr.length) {
+                // Handle invalid index
+                console.error('Invalid index');
+                return arr;
+            }
+
+            // Reorder the array
+            const reorderedArray = arr.slice(index).concat(arr.slice(0, index));
+
+            return reorderedArray;
+        }
 
         function getNewPolygon(pointArray, source) {
+            console.log("pointArray", pointArray)
+            var startPointIndex = 0;
+            // var endPointIndex = 1;
+            var maxLength = 9999999999999999.999999;
+
+            for (var i = 0; i < pointArray.length; i++) { 
+                if (pointArray[i][0] < maxLength) {
+                    maxLength = pointArray[i][0];
+                    startPointIndex = i;
+                }
+            }
+            console.log(startPointIndex);
+            
+            var newPointArray = reorderArray(pointArray, startPointIndex);
+            
 
             var newFeature = new ol.Feature({
                 geometry: new ol.geom.Polygon(
-                    [[pointArray[0], pointArray[1], pointArray[2], pointArray[3], pointArray[0]]]
+                    [[newPointArray[0], newPointArray[1], newPointArray[2], newPointArray[3], newPointArray[0]]]
                 ),
             });
 
             source.addFeature(newFeature);
 
-            const Ax = pointArray[0][0] - pointArray[1][0];
-            const Ay = pointArray[0][1] - pointArray[1][1];
-            const Bx = pointArray[0][0] - pointArray[3][0];
-            const By = pointArray[0][1] - pointArray[3][1];
+            const Ax = newPointArray[0][0] - newPointArray[1][0];
+            const Ay = newPointArray[0][1] - newPointArray[1][1];
+            const Bx = newPointArray[0][0] - newPointArray[3][0];
+            const By = newPointArray[0][1] - newPointArray[3][1];
 
             const ta = value * 1.0 / (Math.sqrt(Ax * Ax + Ay * Ay));
             const tb = value * 1.0 / (Math.sqrt(Bx * Bx + By * By));
 
-
-
-            const newPoint1 = getNewPoint([Ax, Ay], [Bx, By], ta, tb, pointArray[0]);
-            const newPoint2 = getNewPoint([-Ax, -Ay], [Bx, By], ta, tb, pointArray[1]);
-            const newPoint3 = getNewPoint([-Ax, -Ay], [-Bx, -By], ta, tb, pointArray[2]);
-            const newPoint4 = getNewPoint([Ax, Ay], [-Bx, -By], ta, tb, pointArray[3]);
+            const newPoint1 = getNewPoint([Ax, Ay], [Bx, By], ta, tb, newPointArray[0]);
+            const newPoint2 = getNewPoint([-Ax, -Ay], [Bx, By], ta, tb, newPointArray[1]);
+            const newPoint3 = getNewPoint([-Ax, -Ay], [-Bx, -By], ta, tb, newPointArray[2]);
+            const newPoint4 = getNewPoint([Ax, Ay], [-Bx, -By], ta, tb, newPointArray[3]);
 
             newFeature = new ol.Feature({
                 geometry: new ol.geom.Point(
