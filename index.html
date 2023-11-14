@@ -681,11 +681,9 @@
                 var alignCoords = getCoordsByLongerLine(coordinates);
                 var pointArray = [alignCoords[0], alignCoords[1]];
 
-
                 var nearestPoint = getClosestPointFromLine(alignCoords[0], alignCoords[1], alignCoords[2]);
                 if (isValidPoint(alignCoords[0], alignCoords[1], nearestPoint)) {
                     pointArray.push(nearestPoint);
-                    
                 }
                 nearestPoint = [];   
                 nearestPoint = getClosestPointFromLine(alignCoords[0], alignCoords[1], alignCoords[3]);
@@ -696,19 +694,15 @@
                 var baseLinePointsArray = getBaseLinePointsArray(pointArray, source);
                 newCoords = getNewCoords(baseLinePointsArray, alignCoords[2], alignCoords[3], source);
             }
-            
-           
+                       
             var newPolygon = getNewPolygon(newCoords.slice(0, 4), source);
             newFeature = new ol.Feature({
                 geometry: new ol.geom.Polygon(
                     [newPolygon]
                 ),
             });
-            // source.addFeature(newFeature);
 
             const rectangleCoordinates = newFeature.getGeometry().getCoordinates()[0];
-            // const rectwidth = Math.abs(rectangleCoordinates[1][0] - rectangleCoordinates[0][0]);
-            // const rectheight = Math.abs(rectangleCoordinates[3][1] - rectangleCoordinates[0][1]);
             const rectwidth = getLength(rectangleCoordinates[0], rectangleCoordinates[1]);
             const rectheight = getLength(rectangleCoordinates[0], rectangleCoordinates[3]);
             const numCols1 = (rectwidth / value);
@@ -772,7 +766,6 @@
                         ]),
                     });
 
-                    
                     const poly1 = turf.polygon(drawFeature.getGeometry().getCoordinates());
                     const line1 = turf.lineString(lineFeature.getGeometry().getCoordinates());
                     drawGridLinestring(poly1, line1, source);
@@ -786,13 +779,11 @@
                     const line = new ol.geom.LineString([
                         [rectangleCoordinates[0][0] - tb * Bx * j, rectangleCoordinates[0][1] - tb * By * j],
                         [rectangleCoordinates[1][0] - tb * Bx * j, rectangleCoordinates[1][1] - tb * By * j],
-                        // Add as many points as necessary
                     ]);
 
                     const lineFeature = new ol.Feature({
                         geometry: line,
                     });
-                    // gridSource.addFeature(lineFeature);
                     const poly1 = turf.polygon(drawFeature.getGeometry().getCoordinates());
                     const line1 = turf.lineString(lineFeature.getGeometry().getCoordinates());
                     drawGridLinestring(poly1, line1, source);
@@ -801,14 +792,12 @@
                     const line = new ol.geom.LineString([
                         [rectangleCoordinates[2][0] + tb * Bx * j, rectangleCoordinates[2][1] + tb * By * j],
                         [rectangleCoordinates[3][0] + tb * Bx * j, rectangleCoordinates[3][1] + tb * By * j],
-                        // Add as many points as necessary
                     ]);
 
                     const lineFeature = new ol.Feature({
                         geometry: line,
                     });
 
-                    // gridSource.addFeature(lineFeature);
                     const poly1 = turf.polygon(drawFeature.getGeometry().getCoordinates());
                     const line1 = turf.lineString(lineFeature.getGeometry().getCoordinates());
                     drawGridLinestring(poly1, line1, source);
@@ -828,7 +817,6 @@
                 const rectheight = getLength(rectangleCoordinates[0], rectangleCoordinates[3]);
                 const numCols1 = (rectwidth / value);
                 const numRows1 = (rectheight / value);
-
                
                 const Ax = rectangleCoordinates[0][0] - rectangleCoordinates[1][0];
                 const Ay = rectangleCoordinates[0][1] - rectangleCoordinates[1][1];
@@ -843,7 +831,6 @@
 
                         if (map_grid_anchor == 'down_left') {
 
-                            // Calculate the coordinates of the current grid cell
                             let cellTopLeft = [
                                 rectangleCoordinates[0][0] - tb * Bx * (j-1) - ta * Ax * (i),
                                 rectangleCoordinates[0][1] - tb * By * (j-1) - ta * Ay * (i)
@@ -859,7 +846,6 @@
                                 rectangleCoordinates[0][1] - tb * By * (j) - ta * Ay * i
                             ];
 
-                            // // Draw a new rectangle with the top-left corner of the grid cell as the starting point
                             let cellBottomLeft = [
                                 rectangleCoordinates[0][0] - tb * Bx * (j-1) - ta * Ax * (i-1),
                                 rectangleCoordinates[0][1] - tb * By * (j-1) - ta * Ay * (i-1)
@@ -898,9 +884,9 @@
 
                             let cellTopRight = [
                                 rectangleCoordinates[1][0] - tb * Bx * j + ta * Ax * (i),
-                                rectangleCoordinates[1][1] - tb * By * j + ta * Ay * (i)                            ];
+                                rectangleCoordinates[1][1] - tb * By * j + ta * Ay * (i)  
+                            ];
 
-                            // // Draw a new rectangle with the top-left corner of the grid cell as the starting point
                             let cellBottomLeft = [
                                 rectangleCoordinates[1][0] - tb * Bx * (j - 1) + ta * Ax * (i - 1),
                                 rectangleCoordinates[1][1] - tb * By * (j - 1) + ta * Ay * (i - 1)
@@ -1082,8 +1068,6 @@
 
                 map.addLayer(gridLayer);
                 rectgridLayer = (gridLayer);
-
-                
 
                 getNewRectangleFromPolygon(drawFeature.getGeometry().getCoordinates()[0], gridSource);
                 
