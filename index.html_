@@ -1,0 +1,1247 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Openlayer Grid</title>
+
+    <!-- Openlayers -->
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/ol@latest/ol.css" />
+    <script type="text/javascript" src="https://cdn.jsdelivr.net/npm/ol@latest/dist/ol.js"></script>
+    <script
+        src="https://cdn.polyfill.io/v2/polyfill.min.js?features=requestAnimationFrame,Element.prototype.classList,URL,Object.assign"></script>
+
+    <!-- ol-ext -->
+    <link rel="stylesheet" href="./dist/ol-ext.css" />
+    <script type="text/javascript" src="./dist/ol-ext.js"></script>
+    <!-- Pointer events polyfill for old browsers, see https://caniuse.com/#feat=pointer -->
+    <script src="https://unpkg.com/elm-pep"></script>
+</head>
+
+<body style="width: 100%;height: 100%;">
+    <!-- Map div -->
+    <div id="map" style="width:100%; height:100vh; margin: 0px; padding: 0px;"></div>
+    <div className="rectangle" style="display: grid; position: absolute; top: 80px; left: 20px;">
+        <button onClick="handle()" id="handle">Activate Draw</button>
+        <button onClick="handleButtonValid()" style="margin-top: 5px; "> Valide</button>
+        <button onClick="handleButtonValidtest()" style="margin-top: 5px; "> test</button>
+    </div>
+    <div className="rectangle" style="display: grid; position: absolute; top: 30px; left: 500px;">
+        <div>
+            <span>Grid Size</span>
+            <input type="number" style="text-align: center; margin-right: 5px;" id="myInput" value="10"
+                onchange="onInputChange(this)" />
+            <span>m</span>
+        </div>
+        <div style="margin-top: 2px;">
+            <span style="margin-right: 5px;">Grid mode</span>
+            <select id="select" value={selectedOption} onchange='handleSelectChange(this)'>
+                <option value="TRAlign">Top->Right align</option>
+                <option value="TLAlign">Top->Left align</option>
+                <option value="BLAlign">Bottom->Left align</option>
+                <option selected value="BRAlign">Bottom->Right align</option>
+
+            </select>
+        </div>
+    </div>
+
+    <script type="text/javascript">
+        var drawActive = false;
+        var drawFeature = null;
+        var rectangle = null;
+        var rectCoordinates = null;
+        var rectgridLayer = null;
+        var extent = null;
+        var interaction = null;
+        var value = 10;
+        var draw = null;
+        var startangle = 0;
+        var startRadius = 10;
+        var d = [0, 0];
+        var option = 'BRAlign';
+
+        const map = new ol.Map({
+            target: 'map',
+            layers: [
+                new ol.layer.Tile({
+                    source: new ol.source.OSM(),
+                }),
+            ],
+            view: new ol.View({
+                center: [726376.0586457778, 5865060.915527701],
+                zoom: 18,
+            }),
+        });
+
+        const source = new ol.source.Vector();
+
+        const vector = new ol.layer.Vector({
+            source,
+            style: new ol.style.Style({
+                fill: new ol.style.Fill({
+                    color: 'rgba(255, 255, 255, 0.2)',
+                }),
+                stroke: new ol.style.Stroke({
+                    color: '#ffcc33',
+                    width: 2,
+                }),
+            }),
+            name: 'RectLayer'
+        });
+        map.addLayer(vector);
+
+        function buttonTextChange(flag = false) {
+            drawActive = !drawActive;
+            if (drawActive) {
+                document.getElementById('handle').textContent = "Deactivat Draw";
+            }
+            else {
+                document.getElementById('handle').textContent = "Activat Draw";
+                map.removeInteraction(draw);
+                draw = null;
+
+            }
+        }
+
+        function handle() {
+            // let draw;
+            buttonTextChange(false);
+            if (!drawActive) return;
+            if (rectgridLayer) {
+                map.removeLayer(rectgridLayer);
+                rectgridLayer = null;
+                vector.getSource().removeFeature(drawFeature);
+            }
+            if (interaction) {
+                map.removeInteraction(interaction);
+                interaction = null;
+            }
+
+            draw = new ol.interaction.Draw({
+                source: source,
+                type: 'Circle',
+                geometryFunction: ol.interaction.Draw.createBox(),
+            });
+
+            map.addInteraction(draw);
+
+
+            draw.on('drawend', (event) => {
+                console.log('drawend')
+                const feature = event.feature;
+                const geometry = feature.getGeometry();
+                const extent = geometry.getExtent();
+                const width = extent[2] - extent[0];
+                const height = extent[3] - extent[1];
+                console.log(feature);
+                drawFeature = feature;
+                if (width < 300 && height < 300) {
+                    drawFeature = feature;
+                    buttonTextChange(true);
+                } else {
+                    alert('Rectangle must be less than 300x300m');
+                    vector.getSource().removeFeature(feature);
+                    return;
+                }
+
+                interaction = new ol.interaction.Transform({
+                    enableRotatedTransform: false,
+                    addCondition: ol.events.condition.shiftKeyOnly,
+                    hitTolerance: 2,
+                    translateFeature: false,
+                    scale: true,
+                    rotate: true,
+                    // keepAspectRatio: undefined,
+                    translate: true,
+                    keepRectangle: true,
+                    stretch: true,
+                    pointRadius: function (f) {
+                        var radius = f.get('radius') || 10;
+                        return [radius, radius];
+                    }
+                });
+                map.addInteraction(interaction);
+                interaction.set('translate', interaction.get('translate'));
+                interaction.on(['rotatestart', 'translatestart', 'scalestart'], function (e) {
+                    startangle = e.feature.get('angle') || 0;
+                    startRadius = e.feature.get('radius') || 10;
+                    d = [0, 0];
+                });
+                interaction.on('rotating', function (e) {
+                    e.feature.set('angle', startangle - e.angle);
+                });
+                interaction.on('translating', function (e) {
+                    d[0] += e.delta[0];
+                    d[1] += e.delta[1];
+                });
+                interaction.on('scaling', function (e) {
+                    if (e.features.getLength() === 1) {
+                        var feature = e.features.item(0);
+                        feature.set('radius', startRadius * Math.abs(e.scale[0]));
+                    }
+                });
+                interaction.on(['rotateend', 'translateend', 'scaleend'], function (e) {
+                    drawFeature = (e.features.getArray()[0]);
+                });
+
+                // Refresh
+      interaction.set('translate', interaction.get('translate'));
+
+            });
+        };
+
+        function getFeaturefromGeoJSON(map_grid_geo_json) {
+            var format = new ol.format.GeoJSON();
+            var feature = format.readFeature(map_grid_geo_json, {
+                dataProjection: 'EPSG:4326',
+                featureProjection: 'EPSG:3857',
+            });
+            const rectangleCoordinates = feature.getGeometry().getCoordinates()[0];
+            console.log("rectangleCoordinates", rectangleCoordinates)
+            const polygon = new ol.geom.Polygon([[
+                            rectangleCoordinates[1],
+                            rectangleCoordinates[2],
+                            rectangleCoordinates[3],
+                            rectangleCoordinates[0],
+                            rectangleCoordinates[1]                            
+                        ]]);
+
+
+            return new ol.Feature({
+                            geometry: polygon,
+                        });
+        }
+
+        function handleButtonValidtest() {
+            // if (interaction) {
+            //     map.removeInteraction(interaction);
+            //     interaction = (null);
+            // }
+            var map_grid_geo_json = '{"type":"Feature","geometry":{"type":"Polygon","coordinates":[[[6.525147155,46.52609521599999],[6.524717199,46.52589173700002],[6.525159396,46.525446587000005],[6.525589356000001,46.525650067000015],[6.525147155,46.52609521599999]]]},"properties":null}';
+
+                drawFeature = getFeaturefromGeoJSON(map_grid_geo_json);
+                console.log(drawFeature)
+
+
+            if (drawFeature) {
+                const layers = map.getLayers();
+                const extent = drawFeature.getGeometry().getExtent();
+                console.log("extent", extent);
+
+                // layers.forEach(layer => {
+                //     if (layer instanceof ol.source.Vector) {
+                //         console.log('Found vector layer:', layer);
+                //     }
+                // });
+
+                const gridStyle = new ol.style.Style({
+                    image: new ol.style.Circle({
+                        fill: new ol.style.Fill({
+                            color: 'red',
+                        }),
+                        stroke: new ol.style.Stroke({
+                            color: 'black',
+                            width: 2,
+                        }),
+                        radius: 8,
+                    }),
+                    stroke: new ol.style.Stroke({
+                        color: 'blue',
+                        width: 2,
+                    }),
+                    text: new ol.style.Text({
+                        fill: new ol.style.Fill({
+                            color: 'rgba(255, 0, 0, 1)'
+                        }),
+                        font: '12px sans-serif',
+                        textBaseline: 'bottom',
+                        text: 'label'
+                    })
+                });
+
+                const gridSource = new ol.source.Vector();
+                const gridLayer = new ol.layer.Vector({
+                    source: gridSource,
+                    style: function (feature) {
+                        const fill = new ol.style.Fill({
+                            color: 'rgba(255, 0, 0, 0.2)'
+                        });
+                        const stroke = new ol.style.Stroke({
+                            color: 'blue',
+                            width: 2
+                        });
+                        const text = new ol.style.Text({
+                            fill: new ol.style.Fill({
+                                color: 'rgba(255, 0, 0, 1)'
+                            }),
+                            font: '12px sans-serif',
+                            textBaseline: 'center',
+                            text: feature.get('text')
+                        });
+
+                        return new ol.style.Style({
+                            fill: fill,
+                            stroke: stroke,
+                            text: text,
+                            image: new ol.style.Circle({
+                                radius: 6,
+                                fill: new ol.style.Fill({
+                                    color: 'red'
+                                }),
+                                stroke: new ol.style.Stroke({
+                                    color: 'black',
+                                    width: 2
+                                })
+                            })
+                        });
+                    }
+                });
+
+                map.addLayer(gridLayer);
+                rectgridLayer = (gridLayer);
+                gridSource.addFeature(drawFeature);
+                
+                map.on('click', function (event) {
+                    const clickedCoordinates = event.coordinate;
+                    console.log(clickedCoordinates);
+                    if (!drawFeature) return;
+                    const rectangleCoordinates = drawFeature.getGeometry().getCoordinates()[0];
+                    const rectwidth = rectangleCoordinates[1][0] - rectangleCoordinates[0][0];
+                    const rectheight = rectangleCoordinates[3][1] - rectangleCoordinates[0][1];
+                    const cellWidth1 = value
+                    const cellHeight1 = value
+                    const numCols1 = (rectwidth / value);
+                    const numRows1 = (rectheight / value);
+                    const cellWidth_temp = (rectangleCoordinates[1][1] - rectangleCoordinates[0][1]) / numCols1;
+                    const cellHeight_temp = (rectangleCoordinates[3][0] - rectangleCoordinates[0][0]) / numRows1;
+
+                    for (let i = 1; i <= Math.ceil(numCols1); i++) {
+                        for (let j = 1; j <= Math.ceil(numRows1); j++) {
+
+                            if (option == 'BLAlign') {
+
+                                // Calculate the coordinates of the current grid cell
+                                let cellTopLeft = [
+                                    rectangleCoordinates[0][0] - cellWidth_temp * (j) + cellWidth1 * (i - 1),
+                                    rectangleCoordinates[0][1] + cellHeight1 * (j) - cellHeight_temp * (i - 1)
+                                ];
+
+                                let cellBottomRight = [
+                                    rectangleCoordinates[0][0] - cellWidth_temp * (j - 1) + cellWidth1 * i,
+                                    rectangleCoordinates[0][1] + cellHeight1 * (j - 1) - cellHeight_temp * i
+                                ];
+
+                                let cellTopRight = [
+                                    rectangleCoordinates[0][0] - cellWidth_temp * (j) + cellWidth1 * (i),
+                                    rectangleCoordinates[0][1] + cellHeight1 * (j) - cellHeight_temp * (i)
+                                ];
+
+                                // Draw a new rectangle with the top-left corner of the grid cell as the starting point
+                                let cellBottomLeft = [
+                                    rectangleCoordinates[0][0] - cellWidth_temp * (j - 1) + cellWidth1 * (i - 1),
+                                    rectangleCoordinates[0][1] + cellHeight1 * (j - 1) - cellHeight_temp * (i - 1)
+                                ];
+
+                                if (i !== Math.ceil(numCols1) && j === Math.ceil(numRows1)) {
+                                    cellTopLeft = [rectangleCoordinates[3][0] + cellWidth1 * (i - 1), rectangleCoordinates[3][1] - cellHeight_temp * (i - 1)];
+                                    cellTopRight = [rectangleCoordinates[3][0] + cellWidth1 * (i), rectangleCoordinates[3][1] - cellHeight_temp * (i)];
+                                }
+
+                                if (i === Math.ceil(numCols1) && j !== Math.ceil(numRows1)) {
+                                    cellBottomRight = [rectangleCoordinates[1][0] - cellWidth_temp * (j - 1), rectangleCoordinates[1][1] + cellHeight1 * (j - 1)];
+                                    cellTopRight = [rectangleCoordinates[1][0] - cellWidth_temp * j, rectangleCoordinates[1][1] + cellHeight1 * j];
+                                }
+
+                                if (i === Math.ceil(numCols1) && j === Math.ceil(numRows1)) {
+                                    cellTopRight = [rectangleCoordinates[2][0], rectangleCoordinates[2][1]];
+                                    cellTopLeft = [rectangleCoordinates[3][0] + cellWidth1 * (i - 1), rectangleCoordinates[3][1] - cellHeight_temp * (i - 1)];
+                                    cellBottomRight = [rectangleCoordinates[1][0] - cellWidth_temp * (j - 1), rectangleCoordinates[1][1] + cellHeight1 * (j - 1)];
+                                }
+
+                                const tempolygon = new ol.geom.Polygon(
+                                    [
+                                        [
+                                            cellBottomLeft,
+                                            cellTopLeft,
+                                            cellTopRight,
+                                            cellBottomRight,
+                                            cellBottomLeft
+                                        ]
+                                    ]
+                                );
+
+                                // Check if the point is inside the rotated rectangle
+                                var isInside = tempolygon.intersectsCoordinate(clickedCoordinates);
+                                // console.log('isInside', isInside);   
+
+                                // Check if the clicked coordinates fall within the current grid cell
+                                if (isInside) {
+                                    const cellIndex = (i - 1) * parseInt(numRows1) + parseInt(j);
+
+                                    const cellRectangle = new ol.Feature(
+                                        {
+                                            geometry: new ol.geom.Polygon([
+                                                [
+                                                    cellBottomLeft,
+                                                    cellTopLeft,
+                                                    cellTopRight,
+                                                    cellBottomRight,
+                                                    cellBottomLeft
+                                                ]
+                                            ]),
+                                            text: cellIndex.toString(),
+                                        }
+                                    );
+
+                                    console.log(cellRectangle);
+
+                                    gridSource.addFeature(cellRectangle);
+
+                                    // The clicked point is within this grid cell
+                                    console.log('Clicked on cell:', i, j);
+                                    console.log('Clicked on cell:', (i - 1) * numCols1 + j);
+                                    break;
+                                }
+                            }
+                            if (option == 'BRAlign') {
+                                let cellTopLeft = [
+                                    rectangleCoordinates[1][0] - cellWidth_temp * (j) - cellWidth1 * (i),
+                                    rectangleCoordinates[1][1] + cellHeight1 * (j) + cellHeight_temp * (i)
+                                ];
+                                let cellTopRight = [
+                                    rectangleCoordinates[1][0] - cellWidth_temp * (j) - cellWidth1 * (i - 1),
+                                    rectangleCoordinates[1][1] + cellHeight1 * (j) + cellHeight_temp * (i - 1)
+                                ];
+                                let cellBottomRight = [
+                                    rectangleCoordinates[1][0] - cellWidth_temp * (j - 1) - cellWidth1 * (i - 1),
+                                    rectangleCoordinates[1][1] + cellHeight1 * (j - 1) + cellHeight_temp * (i - 1)
+                                ];
+                                let cellBottomLeft = [
+                                    rectangleCoordinates[1][0] - cellWidth_temp * (j - 1) - cellWidth1 * (i),
+                                    rectangleCoordinates[1][1] + cellHeight1 * (j - 1) + cellHeight_temp * (i)
+                                ];
+
+                                if (i !== Math.ceil(numCols1) && j === Math.ceil(numRows1)) {
+                                    cellTopLeft = [rectangleCoordinates[2][0] - cellWidth1 * (i), rectangleCoordinates[2][1] + cellHeight_temp * (i)];
+                                    cellTopRight = [rectangleCoordinates[2][0] - cellWidth1 * (i - 1), rectangleCoordinates[2][1] + cellHeight_temp * (i - 1)];
+                                }
+
+                                if (i === Math.ceil(numCols1) && j !== Math.ceil(numRows1)) {
+                                    cellTopLeft = [rectangleCoordinates[0][0] - cellWidth_temp * j, rectangleCoordinates[0][1] + cellHeight1 * j];
+                                    cellBottomLeft = [rectangleCoordinates[0][0] - cellWidth_temp * (j - 1), rectangleCoordinates[0][1] + cellHeight1 * (j - 1)];
+                                }
+
+                                if (i === Math.ceil(numCols1) && j === Math.ceil(numRows1)) {
+                                    cellTopLeft = [rectangleCoordinates[3][0], rectangleCoordinates[3][1]];
+                                    cellTopRight = [rectangleCoordinates[2][0] - cellWidth1 * (i - 1), rectangleCoordinates[2][1] + cellHeight_temp * (i - 1)];
+                                    cellBottomLeft = [rectangleCoordinates[0][0] - cellWidth_temp * (j - 1), rectangleCoordinates[0][1] + cellHeight1 * (j - 1)];
+                                }
+
+                                const tempolygon = new ol.geom.Polygon(
+                                    [
+                                        [
+                                            cellBottomLeft,
+                                            cellTopLeft,
+                                            cellTopRight,
+                                            cellBottomRight,
+                                            cellBottomLeft
+                                        ]
+                                    ]
+                                );
+
+                                // Check if the point is inside the rotated rectangle
+                                var isInside = tempolygon.intersectsCoordinate(clickedCoordinates);
+                                // console.log('isInside', isInside);   
+
+                                // Check if the clicked coordinates fall within the current grid cell
+                                if (isInside) {
+                                    const cellIndex = (i - 1) * parseInt(numRows1) + parseInt(j);
+
+                                    const cellRectangle = new ol.Feature(
+                                        {
+                                            geometry: new ol.geom.Polygon([
+                                                [
+                                                    cellBottomLeft,
+                                                    cellTopLeft,
+                                                    cellTopRight,
+                                                    cellBottomRight,
+                                                    cellBottomLeft
+                                                ]
+                                            ]),
+                                            text: cellIndex.toString(),
+                                        }
+                                    );
+
+                                    console.log(cellRectangle);
+
+                                    gridSource.addFeature(cellRectangle);
+
+                                    // The clicked point is within this grid cell
+                                    console.log('Clicked on cell:', i, j);
+                                    console.log('Clicked on cell:', (i - 1) * numCols1 + j);
+                                    break;
+                                }
+                            }
+                            else if (option === 'TLAlign') {
+                                let cellTopLeft = [rectangleCoordinates[3][0] + cellWidth_temp * (j - 1) + cellWidth1 * (i - 1), rectangleCoordinates[3][1] - cellHeight1 * (j - 1) - cellHeight_temp * (i - 1)];
+                                let cellBottomRight = [rectangleCoordinates[3][0] + cellWidth_temp * j + cellWidth1 * i, rectangleCoordinates[3][1] - cellHeight1 * j - cellHeight_temp * i];
+                                let cellBottomLeft = [
+                                    rectangleCoordinates[3][0] + cellWidth_temp * (j) + cellWidth1 * (i - 1),
+                                    rectangleCoordinates[3][1] - cellHeight1 * (j) - cellHeight_temp * (i - 1)
+                                ];
+
+                                let cellTopRight = [
+                                    rectangleCoordinates[3][0] + cellWidth_temp * (j - 1) + cellWidth1 * (i),
+                                    rectangleCoordinates[3][1] - cellHeight1 * (j - 1) - cellHeight_temp * (i)
+                                ];
+
+                                if (i !== Math.ceil(numCols1) && j === Math.ceil(numRows1)) {
+                                    cellBottomRight = [rectangleCoordinates[0][0] + cellWidth1 * (i), rectangleCoordinates[0][1] - cellHeight_temp * (i)];
+                                    cellBottomLeft = [rectangleCoordinates[0][0] + cellWidth1 * (i - 1), rectangleCoordinates[0][1] - cellHeight_temp * (i - 1)];
+                                }
+
+                                if (i === Math.ceil(numCols1) && j !== Math.ceil(numRows1)) {
+                                    cellTopRight = [rectangleCoordinates[2][0] + cellWidth_temp * (j - 1), rectangleCoordinates[2][1] - cellHeight1 * (j - 1)];
+                                    cellBottomRight = [rectangleCoordinates[2][0] + cellWidth_temp * (j), rectangleCoordinates[2][1] - cellHeight1 * (j)];
+
+                                }
+
+                                if (i === Math.ceil(numCols1) && j === Math.ceil(numRows1)) {
+                                    cellBottomRight = [rectangleCoordinates[1][0], rectangleCoordinates[1][1]];
+                                    cellBottomLeft = [rectangleCoordinates[0][0] + cellWidth1 * (i - 1), rectangleCoordinates[0][1] - cellHeight_temp * (i - 1)];
+                                    cellTopRight = [rectangleCoordinates[2][0] + cellWidth_temp * (j - 1), rectangleCoordinates[2][1] - cellHeight1 * (j - 1)];
+                                }
+
+                                const tempolygon = new ol.geom.Polygon([
+                                    [
+                                        cellTopLeft,
+                                        cellTopRight,
+                                        cellBottomRight,
+                                        cellBottomLeft,
+                                        cellTopLeft
+                                    ]
+                                ]);
+                                // Check if the point is inside the rotated rectangle
+                                var isInside = tempolygon.intersectsCoordinate(clickedCoordinates);
+                                // console.log('isInside', isInside); 
+                                if (isInside) {
+                                    const cellIndex = (i - 1) * parseInt(numRows1) + parseInt(j);
+                                    const cellRectangle = new ol.Feature({
+                                        geometry: new ol.geom.Polygon([
+                                            [
+                                                cellTopLeft,
+                                                cellTopRight,
+                                                cellBottomRight,
+                                                cellBottomLeft,
+                                                cellTopLeft
+                                            ]
+                                        ]),
+                                        text: cellIndex.toString(),
+                                    });
+                                    gridSource.addFeature(cellRectangle);
+                                    break;
+                                }
+                            }
+                            else if (option === 'TRAlign') {
+                                let cellTopLeft = [
+                                    rectangleCoordinates[2][0] + cellWidth_temp * (j - 1) - cellWidth1 * (i),
+                                    rectangleCoordinates[2][1] - cellHeight1 * (j - 1) + cellHeight_temp * (i)
+                                ];
+                                let cellTopRight = [
+                                    rectangleCoordinates[2][0] + cellWidth_temp * (j - 1) - cellWidth1 * (i - 1),
+                                    rectangleCoordinates[2][1] - cellHeight1 * (j - 1) + cellHeight_temp * (i - 1)
+                                ];
+                                let cellBottomRight = [
+                                    rectangleCoordinates[2][0] + cellWidth_temp * (j) - cellWidth1 * (i - 1),
+                                    rectangleCoordinates[2][1] - cellHeight1 * (j) + cellHeight_temp * (i - 1)
+                                ];
+                                let cellBottomLeft = [
+                                    rectangleCoordinates[2][0] + cellWidth_temp * (j) - cellWidth1 * (i),
+                                    rectangleCoordinates[2][1] - cellHeight1 * (j) + cellHeight_temp * (i)
+                                ];
+
+                                if (i !== Math.ceil(numCols1) && j === Math.ceil(numRows1)) {
+                                    cellBottomRight = [rectangleCoordinates[1][0] - cellWidth1 * (i - 1), rectangleCoordinates[1][1] + cellHeight_temp * (i - 1)];
+                                    cellBottomLeft = [rectangleCoordinates[1][0] - cellWidth1 * (i), rectangleCoordinates[1][1] + cellHeight_temp * (i)];
+                                }
+
+                                if (i === Math.ceil(numCols1) && j !== Math.ceil(numRows1)) {
+                                    cellTopLeft = [rectangleCoordinates[3][0] + cellWidth_temp * (j - 1), rectangleCoordinates[3][1] - cellHeight1 * (j - 1)];
+                                    cellBottomLeft = [rectangleCoordinates[3][0] + cellWidth_temp * (j), rectangleCoordinates[3][1] - cellHeight1 * (j)];
+
+                                }
+
+                                if (i === Math.ceil(numCols1) && j === Math.ceil(numRows1)) {
+                                    
+                                    cellTopLeft = [rectangleCoordinates[3][0] + cellWidth_temp * (j - 1), rectangleCoordinates[3][1] - cellHeight1 * (j - 1)];
+
+                                    cellBottomRight = [rectangleCoordinates[1][0] - cellWidth1 * (i - 1), rectangleCoordinates[1][1] + cellHeight_temp * (i - 1)];
+
+                                    cellBottomLeft = [rectangleCoordinates[0][0],rectangleCoordinates[0][1]];
+                                }
+
+                                const tempolygon = new ol.geom.Polygon(
+                                    [
+                                        [
+                                            cellBottomLeft,
+                                            cellTopLeft,
+                                            cellTopRight,
+                                            cellBottomRight,
+                                            cellBottomLeft
+                                        ]
+                                    ]
+                                );
+                                // Check if the point is inside the rotated rectangle
+                                var isInside = tempolygon.intersectsCoordinate(clickedCoordinates);
+                                // console.log('isInside', isInside); 
+                                if (isInside) {
+                                    const cellIndex = (i - 1) * parseInt(numRows1) + parseInt(j);
+                                    const cellRectangle = new ol.Feature({
+                                        geometry: new ol.geom.Polygon([
+                                            [
+                                                cellBottomLeft,
+                                                cellTopLeft,
+                                                cellTopRight,
+                                                cellBottomRight,
+                                                cellBottomLeft
+                                            ]
+                                        ]),
+                                        text: cellIndex.toString(),
+                                    });
+                                    gridSource.addFeature(cellRectangle);
+                                    break;
+                                }
+                            }
+                        }
+                    }
+                });
+
+                console.log('option', option);
+
+                const rectangleCoordinates = drawFeature.getGeometry().getCoordinates()[0];
+                console.log(rectangleCoordinates);
+
+                const rectwidth = Math.abs(rectangleCoordinates[1][0] - rectangleCoordinates[0][0]);
+                const rectheight = Math.abs(rectangleCoordinates[3][1] - rectangleCoordinates[0][1]);
+                console.log(rectwidth, rectheight )
+
+                const cellWidth1 = value
+                const cellHeight1 = value
+
+                const numCols1 = (rectwidth / value);
+                const numRows1 = (rectheight / value);
+
+                const cellHeight_temp = (rectangleCoordinates[3][0] - rectangleCoordinates[0][0]) / numRows1;
+
+                for (let i = 1; i <= parseInt(numCols1); i++) {
+                    if (option === 'BLAlign') {
+                        const line = new ol.geom.LineString([
+                            [rectangleCoordinates[0][0] + cellWidth1 * i, rectangleCoordinates[0][1] - cellHeight_temp * i],
+                            [rectangleCoordinates[3][0] + cellWidth1 * i, rectangleCoordinates[3][1] - cellHeight_temp * i],
+                            // Add as many points as necessary
+                        ]);
+
+                        const lineFeature = new ol.Feature({
+                            geometry: line,
+                        });
+                        gridSource.addFeature(lineFeature);
+                    }
+                    else if (option === 'BRAlign') {
+                        const line = new ol.geom.LineString([
+                            [rectangleCoordinates[1][0] - cellWidth1 * i, rectangleCoordinates[1][1] + cellHeight_temp * i],
+                            [rectangleCoordinates[2][0] - cellWidth1 * i, rectangleCoordinates[2][1] + cellHeight_temp * i],
+                            // Add as many points as necessary
+                        ]);
+                        const lineFeature = new ol.Feature({
+                            geometry: line,
+                        });
+                        gridSource.addFeature(lineFeature);
+                    }
+                    else if (option === 'TLAlign') {
+                        const line = new ol.geom.LineString([
+                            [rectangleCoordinates[0][0] + cellWidth1 * i, rectangleCoordinates[0][1] - cellHeight_temp * i],
+                            [rectangleCoordinates[3][0] + cellWidth1 * i, rectangleCoordinates[3][1] - cellHeight_temp * i],
+                            // Add as many points as necessary
+                        ]);
+
+                        const lineFeature = new ol.Feature({
+                            geometry: line,
+                        });
+                        gridSource.addFeature(lineFeature);
+                    } else if (option === 'TRAlign') {
+                        const line = new ol.geom.LineString([
+                            [rectangleCoordinates[1][0] - cellWidth1 * i, rectangleCoordinates[1][1] + cellHeight_temp * i],
+                            [rectangleCoordinates[2][0] - cellWidth1 * i, rectangleCoordinates[2][1] + cellHeight_temp * i],
+                            // Add as many points as necessary
+                        ]);
+                        const lineFeature = new ol.Feature({
+                            geometry: line,
+                        });
+                        gridSource.addFeature(lineFeature);
+                    }
+                }
+
+                const cellWidth_temp = (rectangleCoordinates[1][1] - rectangleCoordinates[0][1]) / numCols1;
+                for (let j = 1; j <= parseInt(numRows1); j++) {
+
+                    if (option === 'BLAlign' || option === 'BRAlign') {
+                        const line = new ol.geom.LineString([
+                            [rectangleCoordinates[1][0] - cellWidth_temp * j, rectangleCoordinates[1][1] + cellHeight1 * j],
+                            [rectangleCoordinates[0][0] - cellWidth_temp * j, rectangleCoordinates[0][1] + cellHeight1 * j],
+                            // Add as many points as necessary
+                        ]);
+
+                        const lineFeature = new ol.Feature({
+                            geometry: line,
+                        });
+                        gridSource.addFeature(lineFeature);
+                    }
+                    else if (option === 'TLAlign' || option === 'TRAlign') {
+
+                        const line = new ol.geom.LineString([
+                            [rectangleCoordinates[3][0] + cellWidth_temp * j, rectangleCoordinates[3][1] - cellHeight1 * j],
+                            [rectangleCoordinates[2][0] + cellWidth_temp * j, rectangleCoordinates[2][1] - cellHeight1 * j],
+                            // Add as many points as necessary
+                        ]);
+
+                        const lineFeature = new ol.Feature({
+                            geometry: line,
+                        });
+
+                        gridSource.addFeature(lineFeature);
+                    }
+                }
+
+                const point1 = new ol.geom.Point(rectangleCoordinates[2]);
+
+                const pointFeature = new ol.Feature({
+                    geometry: point1,
+                });
+
+                gridSource.addFeature(pointFeature);
+
+            }
+        };
+
+
+        function handleButtonValid() {
+            if (interaction) {
+                map.removeInteraction(interaction);
+                interaction = (null);
+            }
+           
+
+
+
+            if (drawFeature) {
+                const layers = map.getLayers();
+                const extent = drawFeature.getGeometry().getExtent();
+                // layers.forEach(layer => {
+                //     if (layer instanceof ol.source.Vector) {
+                //         console.log('Found vector layer:', layer);
+                //     }
+                // });
+
+                const gridStyle = new ol.style.Style({
+                    image: new ol.style.Circle({
+                        fill: new ol.style.Fill({
+                            color: 'red',
+                        }),
+                        stroke: new ol.style.Stroke({
+                            color: 'black',
+                            width: 2,
+                        }),
+                        radius: 8,
+                    }),
+                    stroke: new ol.style.Stroke({
+                        color: 'blue',
+                        width: 2,
+                    }),
+                    text: new ol.style.Text({
+                        fill: new ol.style.Fill({
+                            color: 'rgba(255, 0, 0, 1)'
+                        }),
+                        font: '12px sans-serif',
+                        textBaseline: 'bottom',
+                        text: 'label'
+                    })
+                });
+
+                const gridSource = new ol.source.Vector();
+                const gridLayer = new ol.layer.Vector({
+                    source: gridSource,
+                    style: function (feature) {
+                        const fill = new ol.style.Fill({
+                            color: 'rgba(255, 0, 0, 0.2)'
+                        });
+                        const stroke = new ol.style.Stroke({
+                            color: 'blue',
+                            width: 2
+                        });
+                        const text = new ol.style.Text({
+                            fill: new ol.style.Fill({
+                                color: 'rgba(255, 0, 0, 1)'
+                            }),
+                            font: '12px sans-serif',
+                            textBaseline: 'center',
+                            text: feature.get('text')
+                        });
+
+                        return new ol.style.Style({
+                            fill: fill,
+                            stroke: stroke,
+                            text: text,
+                            image: new ol.style.Circle({
+                                radius: 6,
+                                fill: new ol.style.Fill({
+                                    color: 'red'
+                                }),
+                                stroke: new ol.style.Stroke({
+                                    color: 'black',
+                                    width: 2
+                                })
+                            })
+                        });
+                    }
+                });
+
+                map.addLayer(gridLayer);
+                rectgridLayer = (gridLayer);
+                // gridSource.addFeature(drawFeature)
+                map.on('click', function (event) {
+                    const clickedCoordinates = event.coordinate;
+                    console.log(clickedCoordinates);
+                    if (!drawFeature) return;
+                    const rectangleCoordinates = drawFeature.getGeometry().getCoordinates()[0];
+                    const rectwidth = rectangleCoordinates[1][0] - rectangleCoordinates[0][0];
+                    const rectheight = rectangleCoordinates[3][1] - rectangleCoordinates[0][1];
+                    const cellWidth1 = value
+                    const cellHeight1 = value
+                    const numCols1 = (rectwidth / value);
+                    const numRows1 = (rectheight / value);
+                    const cellWidth_temp = (rectangleCoordinates[1][1] - rectangleCoordinates[0][1]) / numCols1;
+                    const cellHeight_temp = (rectangleCoordinates[3][0] - rectangleCoordinates[0][0]) / numRows1;
+
+                    for (let i = 1; i <= Math.ceil(numCols1); i++) {
+                        for (let j = 1; j <= Math.ceil(numRows1); j++) {
+
+                            if (option == 'BLAlign') {
+
+                                // Calculate the coordinates of the current grid cell
+                                let cellTopLeft = [
+                                    rectangleCoordinates[0][0] - cellWidth_temp * (j) + cellWidth1 * (i - 1),
+                                    rectangleCoordinates[0][1] + cellHeight1 * (j) - cellHeight_temp * (i - 1)
+                                ];
+
+                                let cellBottomRight = [
+                                    rectangleCoordinates[0][0] - cellWidth_temp * (j - 1) + cellWidth1 * i,
+                                    rectangleCoordinates[0][1] + cellHeight1 * (j - 1) - cellHeight_temp * i
+                                ];
+
+                                let cellTopRight = [
+                                    rectangleCoordinates[0][0] - cellWidth_temp * (j) + cellWidth1 * (i),
+                                    rectangleCoordinates[0][1] + cellHeight1 * (j) - cellHeight_temp * (i)
+                                ];
+
+                                // Draw a new rectangle with the top-left corner of the grid cell as the starting point
+                                let cellBottomLeft = [
+                                    rectangleCoordinates[0][0] - cellWidth_temp * (j - 1) + cellWidth1 * (i - 1),
+                                    rectangleCoordinates[0][1] + cellHeight1 * (j - 1) - cellHeight_temp * (i - 1)
+                                ];
+
+                                if (i !== Math.ceil(numCols1) && j === Math.ceil(numRows1)) {
+                                    cellTopLeft = [rectangleCoordinates[3][0] + cellWidth1 * (i - 1), rectangleCoordinates[3][1] - cellHeight_temp * (i - 1)];
+                                    cellTopRight = [rectangleCoordinates[3][0] + cellWidth1 * (i), rectangleCoordinates[3][1] - cellHeight_temp * (i)];
+                                }
+
+                                if (i === Math.ceil(numCols1) && j !== Math.ceil(numRows1)) {
+                                    cellBottomRight = [rectangleCoordinates[1][0] - cellWidth_temp * (j - 1), rectangleCoordinates[1][1] + cellHeight1 * (j - 1)];
+                                    cellTopRight = [rectangleCoordinates[1][0] - cellWidth_temp * j, rectangleCoordinates[1][1] + cellHeight1 * j];
+                                }
+
+                                if (i === Math.ceil(numCols1) && j === Math.ceil(numRows1)) {
+                                    cellTopRight = [rectangleCoordinates[2][0], rectangleCoordinates[2][1]];
+                                    cellTopLeft = [rectangleCoordinates[3][0] + cellWidth1 * (i - 1), rectangleCoordinates[3][1] - cellHeight_temp * (i - 1)];
+                                    cellBottomRight = [rectangleCoordinates[1][0] - cellWidth_temp * (j - 1), rectangleCoordinates[1][1] + cellHeight1 * (j - 1)];
+                                }
+
+                                const tempolygon = new ol.geom.Polygon(
+                                    [
+                                        [
+                                            cellBottomLeft,
+                                            cellTopLeft,
+                                            cellTopRight,
+                                            cellBottomRight,
+                                            cellBottomLeft
+                                        ]
+                                    ]
+                                );
+
+                                // Check if the point is inside the rotated rectangle
+                                var isInside = tempolygon.intersectsCoordinate(clickedCoordinates);
+                                // console.log('isInside', isInside);   
+
+                                // Check if the clicked coordinates fall within the current grid cell
+                                if (isInside) {
+                                    const cellIndex = (i - 1) * parseInt(numRows1) + parseInt(j);
+
+                                    const cellRectangle = new ol.Feature(
+                                        {
+                                            geometry: new ol.geom.Polygon([
+                                                [
+                                                    cellBottomLeft,
+                                                    cellTopLeft,
+                                                    cellTopRight,
+                                                    cellBottomRight,
+                                                    cellBottomLeft
+                                                ]
+                                            ]),
+                                            text: cellIndex.toString(),
+                                        }
+                                    );
+
+                                    console.log(cellRectangle);
+
+                                    gridSource.addFeature(cellRectangle);
+
+                                    // The clicked point is within this grid cell
+                                    console.log('Clicked on cell:', i, j);
+                                    console.log('Clicked on cell:', (i - 1) * numCols1 + j);
+                                    break;
+                                }
+                            }
+                            if (option == 'BRAlign') {
+                                let cellTopLeft = [
+                                    rectangleCoordinates[1][0] - cellWidth_temp * (j) - cellWidth1 * (i),
+                                    rectangleCoordinates[1][1] + cellHeight1 * (j) + cellHeight_temp * (i)
+                                ];
+                                let cellTopRight = [
+                                    rectangleCoordinates[1][0] - cellWidth_temp * (j) - cellWidth1 * (i - 1),
+                                    rectangleCoordinates[1][1] + cellHeight1 * (j) + cellHeight_temp * (i - 1)
+                                ];
+                                let cellBottomRight = [
+                                    rectangleCoordinates[1][0] - cellWidth_temp * (j - 1) - cellWidth1 * (i - 1),
+                                    rectangleCoordinates[1][1] + cellHeight1 * (j - 1) + cellHeight_temp * (i - 1)
+                                ];
+                                let cellBottomLeft = [
+                                    rectangleCoordinates[1][0] - cellWidth_temp * (j - 1) - cellWidth1 * (i),
+                                    rectangleCoordinates[1][1] + cellHeight1 * (j - 1) + cellHeight_temp * (i)
+                                ];
+
+                                if (i !== Math.ceil(numCols1) && j === Math.ceil(numRows1)) {
+                                    cellTopLeft = [rectangleCoordinates[2][0] - cellWidth1 * (i), rectangleCoordinates[2][1] + cellHeight_temp * (i)];
+                                    cellTopRight = [rectangleCoordinates[2][0] - cellWidth1 * (i - 1), rectangleCoordinates[2][1] + cellHeight_temp * (i - 1)];
+                                }
+
+                                if (i === Math.ceil(numCols1) && j !== Math.ceil(numRows1)) {
+                                    cellTopLeft = [rectangleCoordinates[0][0] - cellWidth_temp * j, rectangleCoordinates[0][1] + cellHeight1 * j];
+                                    cellBottomLeft = [rectangleCoordinates[0][0] - cellWidth_temp * (j - 1), rectangleCoordinates[0][1] + cellHeight1 * (j - 1)];
+                                }
+
+                                if (i === Math.ceil(numCols1) && j === Math.ceil(numRows1)) {
+                                    cellTopLeft = [rectangleCoordinates[3][0], rectangleCoordinates[3][1]];
+                                    cellTopRight = [rectangleCoordinates[2][0] - cellWidth1 * (i - 1), rectangleCoordinates[2][1] + cellHeight_temp * (i - 1)];
+                                    cellBottomLeft = [rectangleCoordinates[0][0] - cellWidth_temp * (j - 1), rectangleCoordinates[0][1] + cellHeight1 * (j - 1)];
+                                }
+
+                                const tempolygon = new ol.geom.Polygon(
+                                    [
+                                        [
+                                            cellBottomLeft,
+                                            cellTopLeft,
+                                            cellTopRight,
+                                            cellBottomRight,
+                                            cellBottomLeft
+                                        ]
+                                    ]
+                                );
+
+                                // Check if the point is inside the rotated rectangle
+                                var isInside = tempolygon.intersectsCoordinate(clickedCoordinates);
+                                // console.log('isInside', isInside);   
+
+                                // Check if the clicked coordinates fall within the current grid cell
+                                if (isInside) {
+                                    const cellIndex = (i - 1) * parseInt(numRows1) + parseInt(j);
+
+                                    const cellRectangle = new ol.Feature(
+                                        {
+                                            geometry: new ol.geom.Polygon([
+                                                [
+                                                    cellBottomLeft,
+                                                    cellTopLeft,
+                                                    cellTopRight,
+                                                    cellBottomRight,
+                                                    cellBottomLeft
+                                                ]
+                                            ]),
+                                            text: cellIndex.toString(),
+                                        }
+                                    );
+
+                                    console.log(cellRectangle);
+
+                                    gridSource.addFeature(cellRectangle);
+
+                                    // The clicked point is within this grid cell
+                                    console.log('Clicked on cell:', i, j);
+                                    console.log('Clicked on cell:', (i - 1) * numCols1 + j);
+                                    break;
+                                }
+                            }
+                            else if (option === 'TLAlign') {
+                                let cellTopLeft = [rectangleCoordinates[3][0] + cellWidth_temp * (j - 1) + cellWidth1 * (i - 1), rectangleCoordinates[3][1] - cellHeight1 * (j - 1) - cellHeight_temp * (i - 1)];
+                                let cellBottomRight = [rectangleCoordinates[3][0] + cellWidth_temp * j + cellWidth1 * i, rectangleCoordinates[3][1] - cellHeight1 * j - cellHeight_temp * i];
+                                let cellBottomLeft = [
+                                    rectangleCoordinates[3][0] + cellWidth_temp * (j) + cellWidth1 * (i - 1),
+                                    rectangleCoordinates[3][1] - cellHeight1 * (j) - cellHeight_temp * (i - 1)
+                                ];
+
+                                let cellTopRight = [
+                                    rectangleCoordinates[3][0] + cellWidth_temp * (j - 1) + cellWidth1 * (i),
+                                    rectangleCoordinates[3][1] - cellHeight1 * (j - 1) - cellHeight_temp * (i)
+                                ];
+
+                                if (i !== Math.ceil(numCols1) && j === Math.ceil(numRows1)) {
+                                    cellBottomRight = [rectangleCoordinates[0][0] + cellWidth1 * (i), rectangleCoordinates[0][1] - cellHeight_temp * (i)];
+                                    cellBottomLeft = [rectangleCoordinates[0][0] + cellWidth1 * (i - 1), rectangleCoordinates[0][1] - cellHeight_temp * (i - 1)];
+                                }
+
+                                if (i === Math.ceil(numCols1) && j !== Math.ceil(numRows1)) {
+                                    cellTopRight = [rectangleCoordinates[2][0] + cellWidth_temp * (j - 1), rectangleCoordinates[2][1] - cellHeight1 * (j - 1)];
+                                    cellBottomRight = [rectangleCoordinates[2][0] + cellWidth_temp * (j), rectangleCoordinates[2][1] - cellHeight1 * (j)];
+
+                                }
+
+                                if (i === Math.ceil(numCols1) && j === Math.ceil(numRows1)) {
+                                    cellBottomRight = [rectangleCoordinates[1][0], rectangleCoordinates[1][1]];
+                                    cellBottomLeft = [rectangleCoordinates[0][0] + cellWidth1 * (i - 1), rectangleCoordinates[0][1] - cellHeight_temp * (i - 1)];
+                                    cellTopRight = [rectangleCoordinates[2][0] + cellWidth_temp * (j - 1), rectangleCoordinates[2][1] - cellHeight1 * (j - 1)];
+                                }
+
+                                const tempolygon = new ol.geom.Polygon([
+                                    [
+                                        cellTopLeft,
+                                        cellTopRight,
+                                        cellBottomRight,
+                                        cellBottomLeft,
+                                        cellTopLeft
+                                    ]
+                                ]);
+                                // Check if the point is inside the rotated rectangle
+                                var isInside = tempolygon.intersectsCoordinate(clickedCoordinates);
+                                // console.log('isInside', isInside); 
+                                if (isInside) {
+                                    const cellIndex = (i - 1) * parseInt(numRows1) + parseInt(j);
+                                    const cellRectangle = new ol.Feature({
+                                        geometry: new ol.geom.Polygon([
+                                            [
+                                                cellTopLeft,
+                                                cellTopRight,
+                                                cellBottomRight,
+                                                cellBottomLeft,
+                                                cellTopLeft
+                                            ]
+                                        ]),
+                                        text: cellIndex.toString(),
+                                    });
+                                    gridSource.addFeature(cellRectangle);
+                                    break;
+                                }
+                            }
+                            else if (option === 'TRAlign') {
+                                let cellTopLeft = [
+                                    rectangleCoordinates[2][0] + cellWidth_temp * (j - 1) - cellWidth1 * (i),
+                                    rectangleCoordinates[2][1] - cellHeight1 * (j - 1) + cellHeight_temp * (i)
+                                ];
+                                let cellTopRight = [
+                                    rectangleCoordinates[2][0] + cellWidth_temp * (j - 1) - cellWidth1 * (i - 1),
+                                    rectangleCoordinates[2][1] - cellHeight1 * (j - 1) + cellHeight_temp * (i - 1)
+                                ];
+                                let cellBottomRight = [
+                                    rectangleCoordinates[2][0] + cellWidth_temp * (j) - cellWidth1 * (i - 1),
+                                    rectangleCoordinates[2][1] - cellHeight1 * (j) + cellHeight_temp * (i - 1)
+                                ];
+                                let cellBottomLeft = [
+                                    rectangleCoordinates[2][0] + cellWidth_temp * (j) - cellWidth1 * (i),
+                                    rectangleCoordinates[2][1] - cellHeight1 * (j) + cellHeight_temp * (i)
+                                ];
+
+                                if (i !== Math.ceil(numCols1) && j === Math.ceil(numRows1)) {
+                                    cellBottomRight = [rectangleCoordinates[1][0] - cellWidth1 * (i - 1), rectangleCoordinates[1][1] + cellHeight_temp * (i - 1)];
+                                    cellBottomLeft = [rectangleCoordinates[1][0] - cellWidth1 * (i), rectangleCoordinates[1][1] + cellHeight_temp * (i)];
+                                }
+
+                                if (i === Math.ceil(numCols1) && j !== Math.ceil(numRows1)) {
+                                    cellTopLeft = [rectangleCoordinates[3][0] + cellWidth_temp * (j - 1), rectangleCoordinates[3][1] - cellHeight1 * (j - 1)];
+                                    cellBottomLeft = [rectangleCoordinates[3][0] + cellWidth_temp * (j), rectangleCoordinates[3][1] - cellHeight1 * (j)];
+
+                                }
+
+                                if (i === Math.ceil(numCols1) && j === Math.ceil(numRows1)) {
+                                    
+                                    cellTopLeft = [rectangleCoordinates[3][0] + cellWidth_temp * (j - 1), rectangleCoordinates[3][1] - cellHeight1 * (j - 1)];
+
+                                    cellBottomRight = [rectangleCoordinates[1][0] - cellWidth1 * (i - 1), rectangleCoordinates[1][1] + cellHeight_temp * (i - 1)];
+
+                                    cellBottomLeft = [rectangleCoordinates[0][0],rectangleCoordinates[0][1]];
+                                }
+
+                                const tempolygon = new ol.geom.Polygon(
+                                    [
+                                        [
+                                            cellBottomLeft,
+                                            cellTopLeft,
+                                            cellTopRight,
+                                            cellBottomRight,
+                                            cellBottomLeft
+                                        ]
+                                    ]
+                                );
+                                // Check if the point is inside the rotated rectangle
+                                var isInside = tempolygon.intersectsCoordinate(clickedCoordinates);
+                                // console.log('isInside', isInside); 
+                                if (isInside) {
+                                    const cellIndex = (i - 1) * parseInt(numRows1) + parseInt(j);
+                                    const cellRectangle = new ol.Feature({
+                                        geometry: new ol.geom.Polygon([
+                                            [
+                                                cellBottomLeft,
+                                                cellTopLeft,
+                                                cellTopRight,
+                                                cellBottomRight,
+                                                cellBottomLeft
+                                            ]
+                                        ]),
+                                        text: cellIndex.toString(),
+                                    });
+                                    gridSource.addFeature(cellRectangle);
+                                    break;
+                                }
+                            }
+                        }
+                    }
+                });
+
+                console.log('option', option);
+
+                const rectangleCoordinates = drawFeature.getGeometry().getCoordinates()[0];
+                console.log(rectangleCoordinates);
+
+                const rectwidth = Math.abs(rectangleCoordinates[1][0] - rectangleCoordinates[0][0]);
+                const rectheight = Math.abs(rectangleCoordinates[3][1] - rectangleCoordinates[0][1]);
+                console.log(rectwidth, rectheight )
+
+                const cellWidth1 = value
+                const cellHeight1 = value
+
+                const numCols1 = (rectwidth / value);
+                const numRows1 = (rectheight / value);
+
+                const cellHeight_temp = (rectangleCoordinates[3][0] - rectangleCoordinates[0][0]) / numRows1;
+
+                for (let i = 1; i <= parseInt(numCols1); i++) {
+                    if (option === 'BLAlign') {
+                        const line = new ol.geom.LineString([
+                            [rectangleCoordinates[0][0] + cellWidth1 * i, rectangleCoordinates[0][1] - cellHeight_temp * i],
+                            [rectangleCoordinates[3][0] + cellWidth1 * i, rectangleCoordinates[3][1] - cellHeight_temp * i],
+                            // Add as many points as necessary
+                        ]);
+
+                        const lineFeature = new ol.Feature({
+                            geometry: line,
+                        });
+                        gridSource.addFeature(lineFeature);
+                    }
+                    else if (option === 'BRAlign') {
+                        const line = new ol.geom.LineString([
+                            [rectangleCoordinates[1][0] - cellWidth1 * i, rectangleCoordinates[1][1] + cellHeight_temp * i],
+                            [rectangleCoordinates[2][0] - cellWidth1 * i, rectangleCoordinates[2][1] + cellHeight_temp * i],
+                            // Add as many points as necessary
+                        ]);
+                        const lineFeature = new ol.Feature({
+                            geometry: line,
+                        });
+                        gridSource.addFeature(lineFeature);
+                    }
+                    else if (option === 'TLAlign') {
+                        const line = new ol.geom.LineString([
+                            [rectangleCoordinates[0][0] + cellWidth1 * i, rectangleCoordinates[0][1] - cellHeight_temp * i],
+                            [rectangleCoordinates[3][0] + cellWidth1 * i, rectangleCoordinates[3][1] - cellHeight_temp * i],
+                            // Add as many points as necessary
+                        ]);
+
+                        const lineFeature = new ol.Feature({
+                            geometry: line,
+                        });
+                        gridSource.addFeature(lineFeature);
+                    } else if (option === 'TRAlign') {
+                        const line = new ol.geom.LineString([
+                            [rectangleCoordinates[1][0] - cellWidth1 * i, rectangleCoordinates[1][1] + cellHeight_temp * i],
+                            [rectangleCoordinates[2][0] - cellWidth1 * i, rectangleCoordinates[2][1] + cellHeight_temp * i],
+                            // Add as many points as necessary
+                        ]);
+                        const lineFeature = new ol.Feature({
+                            geometry: line,
+                        });
+                        gridSource.addFeature(lineFeature);
+                    }
+                }
+
+                const cellWidth_temp = (rectangleCoordinates[1][1] - rectangleCoordinates[0][1]) / numCols1;
+                for (let j = 1; j <= parseInt(numRows1); j++) {
+
+                    if (option === 'BLAlign' || option === 'BRAlign') {
+                        const line = new ol.geom.LineString([
+                            [rectangleCoordinates[1][0] - cellWidth_temp * j, rectangleCoordinates[1][1] + cellHeight1 * j],
+                            [rectangleCoordinates[0][0] - cellWidth_temp * j, rectangleCoordinates[0][1] + cellHeight1 * j],
+                            // Add as many points as necessary
+                        ]);
+
+                        const lineFeature = new ol.Feature({
+                            geometry: line,
+                        });
+                        gridSource.addFeature(lineFeature);
+                    }
+                    else if (option === 'TLAlign' || option === 'TRAlign') {
+
+                        const line = new ol.geom.LineString([
+                            [rectangleCoordinates[3][0] + cellWidth_temp * j, rectangleCoordinates[3][1] - cellHeight1 * j],
+                            [rectangleCoordinates[2][0] + cellWidth_temp * j, rectangleCoordinates[2][1] - cellHeight1 * j],
+                            // Add as many points as necessary
+                        ]);
+
+                        const lineFeature = new ol.Feature({
+                            geometry: line,
+                        });
+
+                        gridSource.addFeature(lineFeature);
+                    }
+                }
+
+                const point1 = new ol.geom.Point(rectangleCoordinates[0]);
+
+                        const pointFeature = new ol.Feature({
+                            geometry: point1,
+                        });
+
+                        gridSource.addFeature(pointFeature);
+
+            }
+        };
+
+        function onInputChange(e) {
+            value = e.value;
+            console.log("Input value:", value);
+        }
+
+        function handleSelectChange(e) {
+            option = e.value;
+            console.log(e.value);
+        }
+
+    </script>
+</body>
+
+</html>

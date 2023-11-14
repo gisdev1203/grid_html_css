@@ -216,16 +216,37 @@
                 rectangleCoordinates[0],
                 rectangleCoordinates[1]
             ]]);
-           
+            // const polygon = new ol.geom.Polygon([[
+            //     rectangleCoordinates[1],
+            //     rectangleCoordinates[2],
+            //     rectangleCoordinates[3],
+            //     rectangleCoordinates[0],
+            //     rectangleCoordinates[1]
+            // ]]);
+            // return feature;
 
             return new ol.Feature({
                             geometry: polygon,
                         });
         }
+        function getProjFeatureFromPoint(point) {
+            const json = '{"type":"Feature", "properties":null,"geometry":{"type":"Point","coordinates":[' + point[0] + ',' + point[1] + ']' + '} }';
+            var format = new ol.format.GeoJSON();
+            var newfeature = format.readFeature(json, {
+                dataProjection: 'EPSG:3857',
+                featureProjection: 'EPSG:3857',
+            });
+            return newfeature;
+        }
 
         function handleButtonValidtest() {
-  
+            // if (interaction) {
+            //     map.removeInteraction(interaction);
+            //     interaction = (null);
+            // }
             var map_grid_geo_json = '{"type":"Feature","geometry":{"type":"Polygon","coordinates":[[[6.525147155,46.52609521599999],[6.524717199,46.52589173700002],[6.525159396,46.525446587000005],[6.525589356000001,46.525650067000015],[6.525147155,46.52609521599999]]]},"properties":null}';
+
+            // var map_grid_geo_json = '{"type":"Feature","geometry":{"type":"Polygon","coordinates":[[[726302.0708929402, 5865129.018235411], [726384.8445342669, 5865094.198327251], [726398.894672647, 5865207.5157476645], [726306.3470220123, 5865208.126623247], [726302.0708929402, 5865129.018235411] ]]},"properties":null}';
 
             drawFeature = getFeaturefromGeoJSON(map_grid_geo_json);
 
@@ -316,6 +337,7 @@
             return true;
         }
         function getBaseLinePointsArray(array, source) {
+            console.log("array", array);
             var newArray = [];
             if (array.length == 2) newArray = [array[0], array[0], array[1]];
 
@@ -344,26 +366,27 @@
                     newArray =  [array[0], array[2], array[3]];
                 } else {
                     console.log("other case");
-                    newArray =  [array[0], array[0], array[1]];
                 }
             }
-
             // newArray = [array[0], array[0], array[1]];
             if (newArray[0] != newArray[1]){
                 var length = getLength(newArray[0], newArray[1]);
 
                 length = (parseInt(length / value) + 1 ) * value - length;
+
                 const Ax = newArray[1][0] - newArray[2][0];
                 const Ay = newArray[1][1] - newArray[2][1];
-
                 const ta = length * 1.0 / Math.sqrt(Ax * Ax + Ay * Ay);
+
+                newArray[1] = [newArray[1][0] + Ax * ta, newArray[1][1] + Ay * ta]
+
                 return newArray;
             }
 
             return newArray;
         }
 
-        function getNewCoords(baseLinePointsArray, pt1, pt2, source) {
+        function getNewCoords(baseLinePointsArray, pt1, pt2) {
             var pointToLineDistance1 = getPointToLineDistance(baseLinePointsArray[1], baseLinePointsArray[2], pt1);
             var pointToLineDistance2 = getPointToLineDistance(baseLinePointsArray[1], baseLinePointsArray[2], pt2);
             var tempPoint = [0, 0];
@@ -372,7 +395,6 @@
             } else {
                 tempPoint = pt2;
             }
-
             var points = getAnotherPoints(baseLinePointsArray[1], baseLinePointsArray[2], tempPoint);
             return [baseLinePointsArray[1], baseLinePointsArray[2], points[0], points[1], baseLinePointsArray[1]];
         }
@@ -413,6 +435,15 @@
             return [a, b]
         }
 
+
+        // function getPointFromPerpendicularLine(pt1, pt2, pt0) {
+        //     let lineCoeff = getLineCoeff(pt1, pt2);
+        //     var b1 = pt0[1] + pt0[0] / lineCoeff;
+        //     var x = (b1 - b) / (a + 1 / a);
+        //     var y = - x / a + b1;
+        //     return [x, y];
+        // }
+
         function getClosestPointFromLine(pt1, pt2, pt0) {
             console.log(pt1, pt2, pt0);
             let lineCoeff = getLineCoeff(pt1, pt2);
@@ -422,6 +453,8 @@
             var y = - x / lineCoeff[0] + b1;
             return [x, y];
         }
+
+
 
         function getCoordsByLongerLine(coordinates) {
             var pointArray = [];
@@ -553,6 +586,16 @@
             for (var i = 0; i < pointArray.length; i++) {
                 newPointArray.push(pointArray[(startPointIndex + i)%4])
             }
+            
+
+            var newFeature = new ol.Feature({
+                geometry: new ol.geom.Polygon(
+                    [[newPointArray[0], newPointArray[1], newPointArray[2], newPointArray[3], newPointArray[0]]]
+                ),
+            });
+
+            // source.addFeature(newFeature);
+
             const Ax = newPointArray[0][0] - newPointArray[1][0];
             const Ay = newPointArray[0][1] - newPointArray[1][1];
             const Bx = newPointArray[0][0] - newPointArray[3][0];
@@ -616,11 +659,16 @@
 
         function getNewRectangleFromPolygon(coordinates, source) {
             source.addFeature(drawFeature);
-            
+            var logFeature = new ol.Feature({
+                geometry: new ol.geom.Point(
+                    coordinates[0]
+                ),
+            });
+            source.addFeature(logFeature)
+
             var newCoords = [];
-            newCoords = coordinates;
+            newCoords = coordinates
             if (!isRectangle(coordinates.slice(0,4))) {
-                console.log('no rectange')
                 var alignCoords = getCoordsByLongerLine(coordinates);
                 var pointArray = [alignCoords[0], alignCoords[1]];
                 var nearestPoint = getClosestPointFromLine(alignCoords[0], alignCoords[1], alignCoords[2]);
@@ -629,13 +677,8 @@
                 nearestPoint = getClosestPointFromLine(alignCoords[0], alignCoords[1], alignCoords[3]);
                 if (isValidPoint(alignCoords[0], alignCoords[1], nearestPoint))
                     pointArray.push(nearestPoint);
-                console.log(pointArray);
                 var baseLinePointsArray = getBaseLinePointsArray(pointArray, source);
-                console.log("baseLinePointsArray", baseLinePointsArray);
-               
-
-                newCoords = getNewCoords(baseLinePointsArray, alignCoords[2], alignCoords[3], source);
-                console.log("newCoords", newCoords);
+                newCoords = getNewCoords(baseLinePointsArray, alignCoords[2], alignCoords[3]);
             }
             
            
@@ -864,10 +907,9 @@
                 const rectangleCoordinates = newDrawFeature.getGeometry().getCoordinates()[0];
                 const rectwidth = getLength(rectangleCoordinates[0], rectangleCoordinates[1]);
                 const rectheight = getLength(rectangleCoordinates[0], rectangleCoordinates[3]);
-                const numCols1 = (rectwidth / value);
-                const numRows1 = (rectheight / value);
 
-               
+                const cellWidth_temp = (rectangleCoordinates[1][1] - rectangleCoordinates[0][1]) / numCols1;
+                const cellHeight_temp = (rectangleCoordinates[3][0] - rectangleCoordinates[0][0]) / numRows1;
                 const Ax = rectangleCoordinates[0][0] - rectangleCoordinates[1][0];
                 const Ay = rectangleCoordinates[0][1] - rectangleCoordinates[1][1];
                 const Bx = rectangleCoordinates[0][0] - rectangleCoordinates[3][0];
@@ -876,8 +918,8 @@
                 const ta = value * 1.0 / (Math.sqrt(Ax * Ax + Ay * Ay));
                 const tb = value * 1.0 / (Math.sqrt(Bx * Bx + By * By));
 
-                for (let i = 0; i <= Math.ceil(numCols1)+1; i++) {
-                    for (let j = 0; j <= Math.ceil(numRows1)+1; j++) {
+                for (let i = 0; i <= Math.ceil(numCols1); i++) {
+                    for (let j = 0; j <= Math.ceil(numRows1); j++) {
 
                         if (map_grid_anchor == 'down_left') {
 
@@ -932,7 +974,7 @@
                                 });
 
                                 const poly1 = turf.polygon(drawFeature.getGeometry().getCoordinates());
-                                const cellPolygon = turf.polygon(newFeature.getGeometry().getCoordinates());                               
+                                const cellPolygon = turf.polygon(newFeature.getGeometry().getCoordinates());
 
                                 const intersection1 = turf.intersect(cellPolygon, poly1);
                                 if (intersection1) {
@@ -943,7 +985,9 @@
                                             geometry: tempolygon,
                                         }));
                                     }
-                                } 
+                                } else {
+                                    console.log("no intersection")
+                                }
                                 break;
                             }
                         }
@@ -1009,6 +1053,8 @@
                                             geometry: tempolygon,
                                         }));
                                     }
+                                } else {
+                                    console.log("no intersection")
                                 }
                                 break;
                             }                            
@@ -1073,6 +1119,8 @@
                                             geometry: tempolygon,
                                         }));
                                     }
+                                } else {
+                                    console.log("no intersection")
                                 }
                                 break;
                             }
@@ -1137,7 +1185,9 @@
                                             geometry: tempolygon,
                                         }));
                                     }
-                                } 
+                                } else {
+                                    console.log("no intersection")
+                                }
                                 break;
                             }
                         }
@@ -1229,6 +1279,9 @@
             }
         };
     
+
+
+
 
         function getLength(point1, point2) {
             return Math.sqrt((point2[0] - point1[0]) * (point2[0] - point1[0]) + (point2[1] - point1[1]) * (point2[1] - point1[1]));
